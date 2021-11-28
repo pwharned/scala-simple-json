@@ -1,4 +1,4 @@
-package Json
+package json
 
 import scala.util.{Try, Success, Failure}
 
@@ -11,8 +11,11 @@ object Json {
 
   val colin = ":(?![^\\{]*[\\}^])"
 
+  //val colin = ":(?:(?<![0-9]*[\"']:)|(?![0-9]*[\"']))"
+//https://stackoverflow.com/questions/1443360/regex-for-matching-a-character-but-not-when-its-enclosed-in-quotes
+
   case class JsonString( value: String) extends Json {
-    override def toString: String = value
+    override def toString: String = value.replaceAll("\"", "")
   }
   case class JsonNumber(value: Double) extends Json{
     override def toString: String = value.toString
@@ -29,15 +32,15 @@ object Json {
 
   case class JsonMap(items: Map[String,Json]) extends Json{
     override def toString: String = "{" +  items.map{ case (k->v) => k.toString + ":" + v.toString   }.mkString(",") + "}"
+
+    def toMap: Map[String, String] = items.map{
+      case (k -> v) => k.replaceAll("\"", "") -> v.toString.replaceAll("\"", "")
+    }
   }
 
   object JsonMap{
     def fromString(x: String): JsonMap = {
-
-
-
-
-      val map =  x.stripPrefix("{").stripSuffix("}").  split(Json.comma).map(_.split(Json.colin)).map {
+      var map =  x.stripPrefix("{").stripSuffix("}").  split(Json.comma).map(_.split(Json.colin)).map {
 
         case Array(k, v)   => (k, Json.fromString(v) )
 
@@ -73,6 +76,8 @@ object Json {
     case x if Try{x.toFloat}.isSuccess => new JsonNumber(value = x.toDouble)
     case x: String => JsonString(x)
   }}
+
+
 
 
 
@@ -119,3 +124,31 @@ object JsonValue{
 
 }
 
+
+import scala.language.implicitConversions
+import Json._
+
+
+
+object test extends App {
+
+
+
+  var jsonMap = Json.fromString(
+    """
+      |{
+      |  "username": "vly34104",
+      |  "port": "31321",
+      |  "host": "ba99a9e6-d59e-4883-8fc0-d6a8c9f7a08f.c1ogj3sd0tgtu0lqde00.databases.appdomain.cloud",
+      |  "password": "7LKhm8kHnNOegkZa",
+      |  "database":  "bludb",
+      |  "driver": "com.ibm.db2.jcc4"
+      |
+      |
+      |}""".stripMargin)
+
+  print(jsonMap)
+
+
+
+}
