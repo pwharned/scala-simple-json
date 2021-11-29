@@ -1,25 +1,39 @@
 package json
 
 import scala.util.{Try, Success, Failure}
+import json.JsonImplicits._
 
-sealed trait Json
+ trait Json
 
 object Json {
 
   val comma = ",(?![^\\{|\\[]*[\\}|\\]^])"
-  //val colin = ":(?![^\\{|\\[]*[\\}|\\]^])"
 
-  val colin = ":(?![^\\{]*[\\}^])"
+  //val colin = ":(?![^\\{]*[\\}^])"
 
-  //val colin = ":(?:(?<![0-9]*[\"']:)|(?![0-9]*[\"']))"
-//https://stackoverflow.com/questions/1443360/regex-for-matching-a-character-but-not-when-its-enclosed-in-quotes
+  val colin = ":(?!\\w*\")(?![^\\{]*[\\}^])(?<!\\w*\")"
+  //https://stackoverflow.com/questions/1443360/regex-for-matching-a-character-but-not-when-its-enclosed-in-quotes
 
   case class JsonString( value: String) extends Json {
     override def toString: String = value.replaceAll("\"", "")
   }
-  case class JsonNumber(value: Double) extends Json{
+
+
+//  case class JsonNumber[T](value: T ) extends Json{
+ //   override def toString: String = value.toString
+  //}
+
+  sealed trait JsonNumber[T]
+
+  case class JsonInt(value: Int) extends Json with JsonNumber[Int]{
     override def toString: String = value.toString
   }
+
+  case class JsonDouble(value: Double) extends Json with  JsonNumber[Double]{
+    override def toString: String = value.toString
+  }
+
+
   case class JsonBoolean(value: Boolean) extends Json{
     override def toString: String = value.toString
   }
@@ -30,19 +44,21 @@ object Json {
     override def toString: String = "[" + items.mkString(",") + "]"
   }
 
-  case class JsonMap(items: Map[String,Json]) extends Json{
-    override def toString: String = "{" +  items.map{ case (k->v) => k.toString + ":" + v.toString   }.mkString(",") + "}"
+  case class JsonMap(val items: Map[String,Json]) extends Json{
+    override def toString: String = "{" +  items.map{ case (k->v) => k + ":" + v.toString   }.mkString(",") + "}"
 
     def toMap: Map[String, String] = items.map{
-      case (k -> v) => k.replaceAll("\"", "") -> v.toString.replaceAll("\"", "")
+      case (k -> v) => k -> v.toString
     }
+
+    def get(key: String): Option[Json] = items.get(key)
   }
 
-  object JsonMap{
+  object JsonMap {
     def fromString(x: String): JsonMap = {
-      var map =  x.stripPrefix("{").stripSuffix("}").  split(Json.comma).map(_.split(Json.colin)).map {
+      var map =  x.trim.stripPrefix("{").stripSuffix("}").trim.split(Json.comma).map(_.split(Json.colin)).map {
 
-        case Array(k, v)   => (k, Json.fromString(v) )
+        case Array(k, v)   => (k.replaceAll("\"", "").trim , Json.fromString(v.replaceAll("\"", "").trim) )
 
       }.toMap
       JsonMap(map)
@@ -52,36 +68,36 @@ object Json {
   }
 
   object JsonList {
+
     def fromString(x: String): JsonList = {
-      val seq = x.stripPrefix("[").stripSuffix("]").split(Json.comma).toSeq.map(x => Json.fromString(x))
+      val seq = x.trim.stripPrefix("[").stripSuffix("]").trim.split(Json.comma).toSeq.map(x => Json.fromString(x))
       JsonList(seq:_*)
 
     }
-
-
 
   }
 
   def apply[T](x:T)(implicit converter: JsonValue[T]): Json = converter.serialize(x)
 
-  def fromString(y: String): Json = {
+  def fromString(y: String)  = {
     val x = y.trim()
     //println(x)
     x match {
-    case x if x.startsWith("[") => {   JsonList.fromString(x)}
-    case x if x.startsWith("{") => {  JsonMap.fromString(x) }
-    case "null" => new JsonNull(value = null)
-    case "True" => new JsonBoolean(true)
-    case "False"=> new JsonBoolean(false)
-    case x if Try{x.toFloat}.isSuccess => new JsonNumber(value = x.toDouble)
-    case x: String => JsonString(x)
-  }}
+      case x if x.startsWith("[") => {   JsonList.fromString(x)}
+      case x if x.startsWith("{") => {  JsonMap.fromString(x) }
+      case "null" =>  JsonNull(value = null)
+      case "True" =>  JsonBoolean(true)
+      case "False"=>  JsonBoolean(false)
+      case x if x.matches("[0-9]+") => JsonInt(value = x.toInt)
+      case x if Try{x.toDouble}.isSuccess =>  JsonDouble(value = x.toDouble  )
+      case x: String => JsonString(x)
+    }}
 
 
 
 
 
- }
+}
 
 trait JsonValue[T] {
 
@@ -93,9 +109,13 @@ object JsonValue{
   implicit object StringJsonValue extends JsonValue[String]{
     def serialize(t: String): Json.JsonString = Json.JsonString(t)
   }
-  implicit object NumJsonValue extends JsonValue[Double]{
-    def serialize(t: Double): Json.JsonNumber = Json.JsonNumber(t)
+  implicit object DoubleJsonValue extends JsonValue[Double]{
+    def serialize(t: Double): Json.JsonDouble = Json.JsonDouble(t)
   }
+  implicit object IntJsonValue extends JsonValue[Int]{
+    def serialize(t: Int): Json.JsonInt = Json.JsonInt(t)
+  }
+
   implicit object BooleanJsonValue extends JsonValue[Boolean]{
     def serialize(t: Boolean): Json.JsonBoolean = Json.JsonBoolean(t)
   }
@@ -136,18 +156,17 @@ object test extends App {
 
   var jsonMap = Json.fromString(
     """
-      |{
-      |  "username": "vly34104",
-      |  "port": "31321",
-      |  "host": "ba99a9e6-d59e-4883-8fc0-d6a8c9f7a08f.c1ogj3sd0tgtu0lqde00.databases.appdomain.cloud",
-      |  "password": "7LKhm8kHnNOegkZa",
-      |  "database":  "bludb",
-      |  "driver": "com.ibm.db2.jcc4"
-      |
-      |
-      |}""".stripMargin)
+      {
+       "username": "vly34104",
+        "port": "31321",
+        "host": "ba99a9e6-d59e-4883-8fc0-d6a8c9f7a08f.c1ogj3sd0tgtu0lqde00.databases.appdomain.cloud:10",
+        "password": "7LKhm8kHnNOegkZa",
+        "database":  "bludb",
+        "driver": "com.ibm.db2.jcc4"
+      }""")
 
-  print(jsonMap)
+  print(jsonMap.toString )
+
 
 
 
