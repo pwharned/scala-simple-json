@@ -1,7 +1,6 @@
 package json
 
 import scala.util.{Try, Success, Failure}
-import json.JsonImplicits._
 
  trait Json
 
