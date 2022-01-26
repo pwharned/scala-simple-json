@@ -137,11 +137,11 @@ object Test extends App {
   val table  = new ResultTable
 println(table.toString)
 
- // print( Await.result(table.map.apply(table.execute), 2.seconds ))
+  print(table.*.columns)
+print( Await.result(table.map.apply(table.execute), 2.seconds ))
 
 
 
-print(table.*.columns(0).columnName)
   /*
   print(Await.result(table.map.apply(table.execute), 5.seconds))
    */

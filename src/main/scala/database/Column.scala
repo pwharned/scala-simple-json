@@ -44,14 +44,13 @@ trait Alias[+T] extends Expression[T] {
 
 class Column[+T<:Any](name: String)(implicit retriever: Queryable[T]) extends Expression[T] with Alias[T] with Count[T] {
   override def toString: String = name
-  implicit def columnName: String = name
-
+  implicit val columnName: String = name
   def alias = super.alias(columnName).apply(this)
   def count = super.count(columnName).apply(this)
 
 
-  def retrieve(resultSet: ResultSet)(implicit columnName: String): Any = retriever.retrieve( resultSet)
-  def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Any] = resultSet.map(result => retriever.retrieve( resultSet))
+  def retrieve(columnName: String,resultSet: ResultSet): Any = retriever.retrieve(columnName, resultSet)
+  def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Any] = resultSet.map(result => retriever.retrieve(columnName, resultSet))
 
 }
 
@@ -67,20 +66,20 @@ object Column {
 
 
 trait Queryable[+T]{
-  def retrieve(resultSet: ResultSet)(implicit columnName: String): Any
-  def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Any]
+  def retrieve( columnName: String,resultSet: ResultSet): Any
+  def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Any]
 
 }
 
 object Queryable{
   implicit object StringQueryable extends Queryable[String]{
-    override def retrieve(resultSet: ResultSet)(implicit columnName: String):String  = resultSet.getString(columnName)
-    override def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[String]  = resultSet.map(x =>x.getString(columnName))
+    override def retrieve(columnName: String, resultSet: ResultSet):String  = resultSet.getString(columnName)
+    override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[String]  = resultSet.map(x =>x.getString(columnName))
 
   }
   implicit object IntQueryable extends Queryable[Int]{
-    override def retrieve(resultSet: ResultSet)(implicit columnName: String):Int  = resultSet.getInt(columnName)
-    override def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Int]  = resultSet.map(x =>x.getInt(columnName))
+    override def retrieve(columnName: String, resultSet: ResultSet):Int  = resultSet.getInt(columnName)
+    override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Int]  = resultSet.map(x =>x.getInt(columnName))
   }
 }
 
@@ -156,7 +155,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
   def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
     execution.map{
       result => while(result.next()){
-        println(converter.mapTo(*.columns.map(column => column.retrieve(resultSet = result))))
+        println(converter.mapTo(*.columns.map(column => column.retrieve(column.columnName,resultSet = result))))
       }
     }
 
