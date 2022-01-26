@@ -2,15 +2,12 @@ package database
 
 
 import java.lang.Class
-
+import database.Clause
 import json.Json
 import json.Json.JsonMap
 import database.Driver
-
 import scala.io.Source
 import java.sql.{Connection, DriverManager, ResultSet}
-
-import database.ColumnTest.Result
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -18,10 +15,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
 import scala.reflect.runtime.universe.TypeTag
 
-trait Configuration {
-
-
-}
+trait Configuration
 
 object Configuration {
   def fromJson(string: String): Map[String, String] = {
@@ -70,10 +64,7 @@ abstract class AbstractDatabaseConfiguration(host: String, port: String, usernam
 
 }
 
-class ConcreteDatabaseConfiguration(host: String, port: String, username: String, password: String, driver: String, database: String) extends AbstractDatabaseConfiguration(host: String, port: String, username: String, password: String, driver: String, database: String) {
-
-
-}
+class ConcreteDatabaseConfiguration(host: String, port: String, username: String, password: String, driver: String, database: String) extends AbstractDatabaseConfiguration(host: String, port: String, username: String, password: String, driver: String, database: String)
 
 
 object ConcreteDatabaseConfiguration extends Configuration {
@@ -97,29 +88,13 @@ abstract class AbstractDatabaseConnection[A](configuration: AbstractDatabaseConf
 
   def connection: Future[Connection] = Future {
     //Class.forName( configuration.getDriver.toString)
-    print(configuration.connectionString)
     DriverManager.getConnection(configuration.connectionString, configuration.getUsername, configuration.getPassword )
 
   }
 
-  def execute(query: String): Future[ResultSet] = {
-    val connection = this.connection
-    connection.map(x => x.createStatement().executeQuery(query) )
-  }
+  def execute(query: String): Future[ResultSet] = connection.map(x => x.createStatement().executeQuery(query) )
 
 
-
-  def getTable(tableName: String): mutable.Map[String, String] = {
-    val resultSet = this.connection.map(x => x.createStatement().executeQuery(f"select COLUMN_NAME from sysibm.columns where table_name= \'$tableName\' ") )
-    val mymap =  collection.mutable.Map[String, String]()
-
-    resultSet.foreach(x => while(x.next()){
-      mymap.addOne( (x.getString("COLUMN_NAME"), x.getString("DATA_TYPE") ) )
-
-    }  )
-
-     mymap
-  }
 
 }
 
@@ -142,38 +117,34 @@ object Test extends App {
   val currentDirectory = new java.io.File(".").getCanonicalPath
 
   print(currentDirectory +   "/project/database.json")
- // java.sql.DriverManager.registerDriver(new com.ibm.db2.jcc.DB2Driver);
 
 
  val configuraiton = ConcreteDatabaseConfiguration( currentDirectory +   "/project/database.json")
-var query = "SELECT COLUMN_NAME, DATA_TYPE FROM SYSIBM.COLUMNS where table_name = 'SYSTABLES'"
 
-  val connection = DatabaseConnection(configuraiton)
+  implicit val connection = DatabaseConnection(configuraiton)
 
-val result = Await.result(connection.execute(query), 2.seconds)
 
-  case class Result(column_name: String, data_type: String)
+  case class Result(typename: String)
 
-  class ResultTable extends Table[Result](name= "result") {
-    def column_name = Column[String]("COLUMN_NAME")
-    def data_type = Column[String](name = "DATA_TYPE")
+  class ResultTable extends Table[Result](name= "SYSIBM.SYSCOLUMNS") {
+    def column_name = Column[String]("NAME").alias
+    def data_type = Column[String](name = "TYPENAME").count
 
-    def * =  (column_name, data_type)
+    def * =  (column_name, data_type).groupBy(column_name)
   }
 
 
   val table  = new ResultTable
-  //println(table.*.mapTo[Result](resultSet = result ))
-  val columns = table.*.columns
-  var mylist: Result = Result("hello", "goodbye")
+println(table.toString)
 
-while(result.next()){
-
-  Mapable.CaseClassFactory.apply[Result](columns.map(x => x.retrieve(result)))
-}
+ // print( Await.result(table.map.apply(table.execute), 2.seconds ))
 
 
-  //println(table.*.mapTo[Result](resultSet = result ))
+
+print(table.*.columns(0).columnName)
+  /*
+  print(Await.result(table.map.apply(table.execute), 5.seconds))
+   */
 
 
 }

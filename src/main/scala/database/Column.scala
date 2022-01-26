@@ -1,36 +1,86 @@
 package database
 import java.sql.ResultSet
 
-import database.Mapable.getClass
 
 import scala.language.implicitConversions
 import scala.reflect.runtime.universe._
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
-class Column[+T<:Any](name: String)(implicit retriever: Queryable[T]) {
+trait Expression[+T] extends Queryable[T] {
+  def alias[T](implicit columnName: String): Column[T] => Column[T] = ???
+}
+
+trait Aggregation[+T] extends Expression[T]
+
+trait Count[+T] extends Aggregation[T] {
+
+  override def alias[T](implicit columnName: String) = {
+    implicit column : Column[T] =>
+      Column( columnName, f"$columnName as $columnName" )
+
+
+  }
+   def count[T](implicit columnName: String)  = {
+     implicit column : Column[T] =>
+       Column( columnName, f"COUNT(\"$columnName\") as $columnName" )
+
+
+   }
+}
+
+trait Alias[+T] extends Expression[T] {
+
+
+  override def alias[T](implicit columnName: String) = {
+    implicit column : Column[T] =>
+      Column( columnName, f"$columnName as $columnName" )
+
+
+  }
+}
+
+
+class Column[+T<:Any](name: String)(implicit retriever: Queryable[T]) extends Expression[T] with Alias[T] with Count[T] {
   override def toString: String = name
+  implicit def columnName: String = name
 
-  def retrieve(resultSet: ResultSet): Any = retriever.retrieve(name, resultSet)
+  def alias = super.alias(columnName).apply(this)
+  def count = super.count(columnName).apply(this)
+
+
+  def retrieve(resultSet: ResultSet)(implicit columnName: String): Any = retriever.retrieve( resultSet)
+  def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Any] = resultSet.map(result => retriever.retrieve( resultSet))
+
 }
 
 object Column {
 
   def apply[T](name: String)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name)
+  def apply[T](name: String, columnAlias: String)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name){
+    override def toString: String = columnAlias
+  }
 
   //def apply[T](value: T)(implicit converter:Queryable[T]): Column[T] = converter.toQueryable(value)
 }
 
 
 trait Queryable[+T]{
-   def retrieve(column_name: String, resultSet: ResultSet): Any
+  def retrieve(resultSet: ResultSet)(implicit columnName: String): Any
+  def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Any]
+
 }
 
 object Queryable{
   implicit object StringQueryable extends Queryable[String]{
-    override def retrieve(column_name: String, resultSet: ResultSet):String  = resultSet.getString(column_name)
+    override def retrieve(resultSet: ResultSet)(implicit columnName: String):String  = resultSet.getString(columnName)
+    override def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[String]  = resultSet.map(x =>x.getString(columnName))
+
   }
   implicit object IntQueryable extends Queryable[Int]{
-    override def retrieve(column_name: String, resultSet: ResultSet):Int = resultSet.getInt(column_name)
+    override def retrieve(resultSet: ResultSet)(implicit columnName: String):Int  = resultSet.getInt(columnName)
+    override def retrieve(resultSet: Future[ResultSet])(implicit columnName: String): Future[Int]  = resultSet.map(x =>x.getInt(columnName))
   }
 }
 
@@ -75,31 +125,41 @@ trait Mapable {
   }
 
 
-
-
-
-}
-
-
-object Mapable extends Mapable{
-
-  object CaseClassFactory{
-    def apply[T: TypeTag](args: Seq[_]): T = new CaseMapable[T].mapTo(args)
+  object CaseMapable{
+    def apply[T: TypeTag]: CaseMapable[T] = new CaseMapable[T]
   }
+
 }
 
-abstract class Table[A](name: String) {
+object Mapable extends Mapable
 
 
+abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
+
+  implicit val tableName: String = name
 
   def * : Query[Column[Any]]
 
-  //implicit def tupleToQuery(values:  Tuple2[Column[String], Column[String]] ): Query[String] = new Query(values)
-  implicit def tupleToQuery[T<:Any](values:  Product ): Query[T] = new Query(values)
+  override def toString: String = *.toString
 
-  def select: String = {
-    val columns = *.toString
-    f"SELECT $columns FROM $name"
+  implicit val converter: Mapable.CaseMapable[A] = Mapable.CaseMapable[A]
+  //implicit def tupleToQuery(values:  Tuple2[Column[String], Column[String]] ): Query[String] = new Query(values)
+  implicit def tupleToQuery[T<:Any](values:  Product ): Query[T] = new Query(values.productIterator.toSeq.asInstanceOf[List[Column[T]]])
+
+  type Execution = Future[ResultSet]
+
+
+  def execute[T](implicit connection: AbstractDatabaseConnection[T]): Future[ResultSet] = {
+    connection.execute(toString)
+  }
+
+  def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
+    execution.map{
+      result => while(result.next()){
+        println(converter.mapTo(*.columns.map(column => column.retrieve(resultSet = result))))
+      }
+    }
+
   }
 
 
@@ -107,23 +167,36 @@ abstract class Table[A](name: String) {
 
 
 
+class Query[+T<:Any] (values: List[Column[T]] )(implicit tableName: String) {
 
 
 
-class Query[T<:Any] (values: Product ){
-  def query: String = values.toString
 
-  def columns: List[Column[Any]] = values.productIterator.toList.asInstanceOf[List[Column[Any]]]
-
-  override def toString: String = values.toString
+  def drop[A<:Column[_]](column: A*): Query[T] = new Query(values.filter( x=> !column.map(c=>c.columnName).contains(x.columnName)))
 
 
+  def columns: List[Column[Any]] = values
 
-  def mapTo[T](resultSet: ResultSet)(implicit converter: Mapable.CaseMapable[T] ): Unit = {
-    while (resultSet.next()){
-      converter.mapTo(columns.map(column => column.retrieve(resultSet)))
+  def cl[T]: String = columns.map( x=>x match {
+    case x: Column[T] => x.toString
+  }).mkString(",")
+
+  override def toString: String = f"SELECT $cl FROM $tableName"
+
+
+  def select[A<:Column[_]](column: A*): Query[T] = new Query(values.filter(x => column.map(c => c.columnName).contains(x.columnName )))
+
+
+  def groupBy[A<: Any](column: Column[A]*): Query[T] = {
+    val query: String = this.toString
+     new Query(values)
+    {
+      override def toString = query + (this :: Mutatable.GroupAble).clause(column.map(x =>x.columnName):_* ).apply(column.map(x => x.columnName).mkString(","))
+
     }
   }
+
+
 }
 
 
@@ -132,7 +205,7 @@ class Query[T<:Any] (values: Product ){
 
 object Query{
 
-  def apply[T <: Any](values: Product): Query[T] = new Query(values)
+  def apply[T <: Any](values: List[Column[T]])(implicit tableName: String): Query[T] = new Query(values)
 
 
 }
@@ -152,12 +225,12 @@ object ColumnTest extends  App{
     def column_name = Column[String]("COLUMN_NAME")
     def data_type = Column[String](name = "DATA_TYPE")
 
-    def * =  (column_name, data_type)
+    def * =  ( data_type,column_name)
   }
 
 
   val table  = new ResultTable
-
+val columns = Seq("COLUMN_NAME")
 }
 
 ///Map to shoudl return a function which implicitly maps to a collection of the case class

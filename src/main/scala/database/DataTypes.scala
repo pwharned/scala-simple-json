@@ -26,5 +26,4 @@ object Typeable{
 }
 
 
-trait Row
 
