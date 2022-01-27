@@ -9,44 +9,56 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 trait Expression[+T] extends Queryable[T] {
-  def alias[T](implicit columnName: String): Column[T] => Column[T] = ???
+  def alias[T](aliasedName: String)(implicit column: Column[T]): Column[T] => Column[T] = ???
 }
 
 trait Aggregation[+T] extends Expression[T]
 
 trait Count[+T] extends Aggregation[T] {
 
-  override def alias[T](implicit columnName: String) = {
+
+  override def alias[T](aliasedName: String)(implicit column: Column[T]) = {
+    val columnName = column.columnName
     implicit column : Column[T] =>
-      Column( columnName, f"$columnName as $columnName" )
+      Column( columnName, aliasedName )
 
 
   }
-   def count[T](implicit columnName: String)  = {
-     implicit column : Column[T] =>
-       Column( columnName, f"COUNT(\"$columnName\") as $columnName" )
+
+   def countAs[T](aliasedName: String)(implicit column: Column[T]):Column[T] => Column[T] = {
+    val columnName = column.columnName
+    implicit column : Column[T] =>
+      Column( columnName, aliasedName, "COUNT" )
 
 
-   }
+  }
+
 }
 
 trait Alias[+T] extends Expression[T] {
 
 
-  override def alias[T](implicit columnName: String) = {
+
+  override def alias[T](aliasedName: String)(implicit column: Column[T]) = {
+    val columnName = column.columnName
     implicit column : Column[T] =>
-      Column( columnName, f"$columnName as $columnName" )
+      Column( columnName, aliasedName )
 
 
   }
+
 }
 
 
 class Column[+T<:Any](name: String)(implicit retriever: Queryable[T]) extends Expression[T] with Alias[T] with Count[T] {
   override def toString: String = name
+
+  def alias: String = name
+
+  implicit val column: Column[T] = this
   implicit val columnName: String = name
-  def alias = super.alias(columnName).apply(this)
-  def count = super.count(columnName).apply(this)
+  def as[A>:T](aliasedName: String =name)(implicit column: Column[A] = this) = super.alias(aliasedName).apply(this)
+  def count[A>:T](aliasedName: String =name)(implicit column: Column[A] = this) = super.countAs(aliasedName).apply(this)
 
 
   def retrieve(columnName: String,resultSet: ResultSet): Any = retriever.retrieve(columnName, resultSet)
@@ -58,7 +70,13 @@ object Column {
 
   def apply[T](name: String)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name)
   def apply[T](name: String, columnAlias: String)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name){
-    override def toString: String = columnAlias
+    override def toString: String = f"$name as $columnAlias"
+    override def alias: String = columnAlias
+  }
+
+  def apply[T](name: String, columnAlias: String, aggregation: String)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name){
+    override def toString: String = f"$aggregation(\"$name\") as $columnAlias"
+    override def alias: String = columnAlias
   }
 
   //def apply[T](value: T)(implicit converter:Queryable[T]): Column[T] = converter.toQueryable(value)
@@ -147,6 +165,8 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
   type Execution = Future[ResultSet]
 
+  def flatMap[T](implicit connection:AbstractDatabaseConnection[T])  = this.map.apply(this.execute)
+
 
   def execute[T](implicit connection: AbstractDatabaseConnection[T]): Future[ResultSet] = {
     connection.execute(toString)
@@ -155,7 +175,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
   def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
     execution.map{
       result => while(result.next()){
-        println(converter.mapTo(*.columns.map(column => column.retrieve(column.columnName,resultSet = result))))
+        println(converter.mapTo(*.columns.map(column => column.retrieve(column.alias,resultSet = result))))
       }
     }
 

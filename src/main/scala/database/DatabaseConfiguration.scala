@@ -127,8 +127,8 @@ object Test extends App {
   case class Result(typename: String)
 
   class ResultTable extends Table[Result](name= "SYSIBM.SYSCOLUMNS") {
-    def column_name = Column[String]("NAME").alias
-    def data_type = Column[String](name = "TYPENAME").count
+    def column_name = Column[String]("NAME")
+    def data_type = Column[String](name = "TYPENAME")
 
     def * =  (column_name, data_type).groupBy(column_name)
   }
@@ -138,7 +138,7 @@ object Test extends App {
 println(table.toString)
 
   print(table.*.columns)
-print( Await.result(table.map.apply(table.execute), 2.seconds ))
+print( Await.result(table.flatMap, 2.seconds ))
 
 
 
