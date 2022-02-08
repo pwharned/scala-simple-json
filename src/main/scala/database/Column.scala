@@ -176,6 +176,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
     execution.map{
       result => while(result.next()){
         println(converter.mapTo(*.columns.map(column => column.retrieve(column.alias,resultSet = result))))
+
       }
     }
 

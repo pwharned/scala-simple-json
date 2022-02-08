@@ -32,6 +32,10 @@ object Json {
     override def toString: String = value.toString
   }
 
+  case class JsonProduct(value: Product) extends Json {
+    override def toString: String = value.productIterator.toArray.mkString(",")
+  }
+
 
   case class JsonBoolean(value: Boolean) extends Json{
     override def toString: String = value.toString
@@ -94,8 +98,6 @@ object Json {
 
 
 
-
-
 }
 
 trait JsonValue[T] {
@@ -114,33 +116,25 @@ object JsonValue{
   implicit object IntJsonValue extends JsonValue[Int]{
     def serialize(t: Int): Json.JsonInt = Json.JsonInt(t)
   }
-
   implicit object BooleanJsonValue extends JsonValue[Boolean]{
     def serialize(t: Boolean): Json.JsonBoolean = Json.JsonBoolean(t)
   }
-
   implicit object NullJsonValue extends JsonValue[Null]{
     def serialize(t: Null): Json.JsonNull = Json.JsonNull(t)
   }
-
-
-
-
+  implicit object ProductJsonValue extends JsonValue[Product]{
+    def serialize(t: Product): Json.JsonProduct = Json.JsonProduct(t)
+  }
   implicit def MapJsonValue[T: JsonValue]: JsonValue[Map[String, T]] = new JsonValue[Map[String, T]]{
     def serialize(t:  Map[String, T]):Json.JsonMap = {
       Json.JsonMap(t.map(t => (t._1, implicitly[JsonValue[T]].serialize(t._2) )    ))
     }
   }
-
   implicit def SeqJsonValue[T: JsonValue]: JsonValue[Seq[T]] = new JsonValue[Seq[T]]{
     def serialize(t: Seq[T]):Json.JsonList = {
       Json.JsonList(t.map(implicitly[JsonValue[T]].serialize):_*)
     }
   }
-
-
-
-
 }
 
 
@@ -162,10 +156,15 @@ object test extends App {
         "password": "7LKhm8kHnNOegkZa",
         "database":  "bludb",
         "driver": "com.ibm.db2.jcc4"
-      }""")
+      }"""
+  )
 
-  print(jsonMap.toString )
 
+  case class Person(name: String)
+  val myperson =  Person("john")
+  val personSeq: Seq[Product] = Seq(myperson)
+
+  print(Json(personSeq).toString)
 
 
 
