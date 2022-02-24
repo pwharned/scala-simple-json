@@ -1,0 +1,21 @@
+with day(day) as (select date(max(timestamp)) from test_data2) select sex, count(sex), risk, minute(timestamp), hour(timestamp) from test_data2 where date(timestamp)=(select day from day) group by sex, risk, minute(timestamp), hour(timestamp)
+
+with t1 as (select sex, cast(count(sex) as float) as group, risk, minute(timestamp) as minutes from test_data2 where date(timestamp) =(select date(max(timestamp)) from test_data2) group by sex, risk, minute(timestamp)),
+t2 as
+(select sex , risk, minutes, group,group/SUM(group) over (partition by sex, minutes) as ratios from t1)
+
+select sex, risk, ratios, group, minutes, cast(ratios as float)/cast(sum(ratios) over (partition by  risk, minutes) - ratios as float) as disparate_impact from t2
+
+
+
+with t1 as (select sex, count(sex) as group, risk, minute(timestamp) as minutes from test_data2 where date(timestamp) =(select date(max(timestamp)) from test_data2) group by sex, risk, minute(timestamp))
+
+select sex , risk, minutes, group, cast((0.0+group)/SUM(group) over (partition by sex, minutes) as float )/cast(sum(cast((0.0+group)/SUM(group) over (partition by sex, minutes) as float )) over (partition by  risk, minutes) - cast((0.0+group)/SUM(group) over (partition by sex, minutes) as float ) as float) as ratios from t1
+
+
+with t1 as (select sex, cast(count(sex) as float) as group, risk, minute(timestamp) as minutes from test_data2 where date(timestamp) =(select date(max(timestamp)) from test_data2) group by sex, risk, minute(timestamp)),
+t2 as
+(select sex , risk, minutes, group,group/SUM(group) over (partition by sex, minutes) as ratios from t1)
+
+select sex, risk, ratios, group, minutes, cast(ratios as float)/cast(sum(ratios) over (partition by  risk, minutes) - ratios as float) as disparate_impact from t2
+

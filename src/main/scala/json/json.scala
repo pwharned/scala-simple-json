@@ -28,12 +28,21 @@ object Json {
     override def toString: String = value.toString
   }
 
+  case class JsonAny(value: Any) extends Json {
+
+    override def toString: String = value match {
+      case x: Int => JsonInt(value.asInstanceOf[Int]).toString
+      case x: String => JsonString(value.asInstanceOf[String]).toString
+      case _  => value.toString
+    }
+  }
+
   case class JsonDouble(value: Double) extends Json with  JsonNumber[Double]{
     override def toString: String = value.toString
   }
 
   case class JsonProduct(value: Product) extends Json {
-    override def toString: String = value.productIterator.toArray.mkString(",")
+    override def toString: String = "[" + value.productIterator.toArray.map(x => Json.JsonAny(x)).mkString(",") +"]"
   }
 
 
@@ -122,6 +131,9 @@ object JsonValue{
   implicit object NullJsonValue extends JsonValue[Null]{
     def serialize(t: Null): Json.JsonNull = Json.JsonNull(t)
   }
+  implicit object AnyJsonValue extends JsonValue[Any]{
+    def serialize(t: Any): Json.JsonAny = Json.JsonAny(t)
+  }
   implicit object ProductJsonValue extends JsonValue[Product]{
     def serialize(t: Product): Json.JsonProduct = Json.JsonProduct(t)
   }
@@ -164,7 +176,9 @@ object test extends App {
   val myperson =  Person("john")
   val personSeq: Seq[Product] = Seq(myperson)
 
-  print(Json(personSeq).toString)
+  print(Json.JsonProduct(myperson).toString)
+  print(jsonMap)
+
 
 
 

@@ -2,7 +2,15 @@ package database
 
 trait Clause
 
+class Condition(column: Column[_], operator: String, value: String){
+  override def toString: String = column.expression + operator + value
+}
 
+object Condition {
+   def apply(column: Column[_], operator: String, value: String): Condition = new Condition(column, operator, value)
+  def apply[T](column: Column[_], operator: String, value: Table[T]): Condition = new Condition(column, operator, "(" +  value.*.toString + ")")
+
+}
 
 trait GroupBy extends Clause{
 
@@ -14,6 +22,15 @@ trait GroupBy extends Clause{
   }}
 }
 
+trait Filter extends Clause{
+
+  implicit def clause(conditions: Condition*): String => String = {
+    val columns = conditions.mkString(" and ")
+    implicit transformer: String  => {
+
+      s" WHERE $columns"
+    }}
+}
 
 
 object Mutatable {
@@ -29,6 +46,15 @@ object Mutatable {
     def ::[T](o: T) = new Grouped(o)
 
     final class Grouped[+T] private[GroupAble](override val obj: T) extends Mutated[T](obj = obj) with GroupBy
+
+
+  }
+  object Filterable {
+    implicit def innerObj[T](o: Filtered[T]):T = o.obj
+
+    def ::[T](o: T) = new Filtered(o)
+
+    final class Filtered[+T] private[Filterable](override val obj: T) extends Mutated[T](obj = obj) with Filter
 
 
   }
