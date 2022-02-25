@@ -11,9 +11,6 @@ object ImpactEvaluator {
 
   class Impact[T: TypeTag](prediction: String, table: String, protected_column: String, scoring_timestamp: String  = "scoring_timestamp",connection: AbstractDatabaseConnection[_]){
 
-
-
-
     class GroupedTable extends Table[T](name= table) {
       def prediction_column = Column[String](prediction).as("prediction")
       def protected_attribute_column = Column[String](name = protected_column).count("group")
@@ -53,15 +50,11 @@ object ImpactEvaluator {
 
       override def * = (prediction_column, protected_attribute_column,group.as("group"), minutes, ratio, ratios)
 
-
     }
 
     def maxDaysTable = new MaxDaysTable()
 
-
-    def result = new ResultsTable()
-
-
+    def result = new RatiosTable()+ new GroupedTable()
 
   }
 
@@ -84,9 +77,8 @@ object impactTest extends App{
 
 
   val result = new ImpactEvaluator.Impact[Result]("risk", "test_data2", "sex", scoring_timestamp = "timestamp",connection = connection)
-  println(result.result.*.toString)
 
-println(result.result.toString)
+println(result.result.*)
 
 
   // var res = Await.result(result.result.flatMap, 5.seconds).map(x => json.Json.JsonProduct(x).toString).mkString(",")

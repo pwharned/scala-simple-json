@@ -1,0 +1,87 @@
+package database
+import scala.reflect.runtime.universe._
+
+
+trait Executable
+class Query[+T<:Any] (values: List[Column[T]] )(implicit tableName: String) extends Executable {
+
+
+  def drop[A<:Column[_]](column: A*): Query[T] = new Query(values.filter( x=> !column.map(c=>c.columnName).contains(x.columnName)))
+
+
+  def columns: List[Column[Any]] = values
+
+  def cl[T]: String = columns.map( x=>x match {
+    case x: Column[T] => x.toString
+  }).mkString(",")
+
+  override def toString: String = f"SELECT $cl FROM $tableName"
+
+  def asCte(tableName: String): String = f"$tableName as (" + toString + ")"
+
+
+  def select[A<:Column[_]](column: A*): Query[T] = new Query(values.filter(x => column.map(c => c.columnName).contains(x.columnName )))
+
+
+  def groupBy[A<: Any](groupByColumns: Column[A]*): Query[T] = {
+    val query: String = this.toString
+    new Query(values)
+    {
+      override def toString = query + (this :: Mutatable.GroupAble).clause(groupByColumns.map(x =>x.expression):_* ).apply(groupByColumns.map(x => x.expression).mkString(","))
+
+    }
+  }
+
+  def filter[A<: Any](filterColumn: Column[A], operator: String, value: String ): Query[T] = {
+    val condition =  Condition(filterColumn, operator, value)
+    val query: String = this.toString
+    new Query(values)
+    {
+      override def toString = query + (this :: Mutatable.Filterable).clause(condition ).apply(filterColumn.expression)
+
+    }
+  }
+
+  def filter[A<: Any, B: TypeTag](filterColumn: Column[A], operator: String, table: Table[B] ): Query[T] = {
+    val condition =  Condition(filterColumn, operator, table)
+    val query: String = this.toString
+    new Query(values)
+    {
+      override def toString = query + (this :: Mutatable.Filterable).clause(condition ).apply(filterColumn.expression)
+
+    }
+  }
+}
+
+
+class EmptyQuery[T<:Nothing] (implicit tableName: String) extends Query[T](List()) {
+
+  val values: List[Column[Nothing]]  = List()
+
+  override def drop[A<:Column[_]](column: A*): Query[Nothing] = new EmptyQuery()
+
+
+  override def columns: List[Column[T]] = values
+
+  override def cl[T]: String = ""
+
+  override def toString: String = f"SELECT $cl FROM $tableName"
+
+  override def asCte(tableName: String): String = f"$tableName as (" + toString + ")"
+
+
+  override def select[A<:Column[_]](column: A*): Query[Nothing] = new EmptyQuery()
+
+
+  override def groupBy[A<: Any](groupByColumns: Column[A]*):Query[Nothing] = new EmptyQuery()
+
+  override def filter[A<: Any](filterColumn: Column[A], operator: String, value: String ): Query[Nothing] = new EmptyQuery()
+
+  override def filter[A<: Any, B: TypeTag](filterColumn: Column[A], operator: String, table: Table[B] ): Query[Nothing] = new EmptyQuery()
+}
+
+
+object Query{
+  def apply[T <: Any](values: List[Column[T]])(implicit tableName: String): Query[T] = new Query(values)
+}
+
