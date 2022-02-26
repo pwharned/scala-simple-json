@@ -32,57 +32,38 @@ object ImpactEvaluator {
     class RatiosTable extends Table[T](name = "t1") {
       def prediction_column = Column[String](name= "prediction")
       def protected_attribute_column = Column[String](name = protected_column)
-      def group = Column[String](name = "group").cast(datatype = "float")
+      def group = Column[Float](name = "group").cast(datatype = "float")
 
-      def minutes = Column[String](name = "minutes")
+      def minutes = Column[Int](name = "minutes")
+      def hours = Column[Int](name = "hours")
+      def days = Column[Int](name = "days")
 
-      def ratio = Column[String](name = "group").aggregateOver("ratios", "sum", protected_attribute_column, minutes )
+      def ratio = Column[Double](name = "group").aggregateOver("ratios", "sum", protected_attribute_column, minutes, hours, days )
 
       def ratios = group/ratio
 
-      def * = (prediction_column, protected_attribute_column,group.as("group"), minutes, ratios)
+      def * = (prediction_column, protected_attribute_column,group.as("group"), minutes, ratios, hours, days)
 
     }
 
-    class ResultsTable extends RatiosTable{
-      override def  ratio = Column[String](name = "ratios")
-      override def  ratios = Column[String](name = "ratios").aggregateOver("ratios", "sum", prediction_column, minutes )
+    class ResultsTable extends RatiosTable {
 
-      override def * = (prediction_column, protected_attribute_column,group.as("group"), minutes, ratio, ratios)
+      override  val tableName: String = "t2"
+
+      override def ratio = Column[Double](name = "ratios").as("disparate_impact")
+
+      def disparate_impact = ratio/Column[Double](name = "ratios").aggregateOver("disparate_impact", "sum", prediction_column, minutes, hours, days)-ratio
+
+      override def * = (prediction_column, protected_attribute_column, group.as("group"), disparate_impact, minutes, hours, days)
 
     }
 
     def maxDaysTable = new MaxDaysTable()
 
-    def result = new RatiosTable()+ new GroupedTable()
+    def result = new RatiosTable()+ new GroupedTable() + new ResultsTable()
 
   }
 
 }
 
 
-object impactTest extends App{
-
-
-  val currentDirectory = new java.io.File(".").getCanonicalPath
-
-  print(currentDirectory +   "/project/database.json")
-
-
-  val configuraiton = ConcreteDatabaseConfiguration( currentDirectory +   "/project/database.json")
-
-  implicit val connection = DatabaseConnection(configuraiton)
-
-  case class Result(prediction: String, group:String)
-
-
-  val result = new ImpactEvaluator.Impact[Result]("risk", "test_data2", "sex", scoring_timestamp = "timestamp",connection = connection)
-
-println(result.result.*)
-
-
-  // var res = Await.result(result.result.flatMap, 5.seconds).map(x => json.Json.JsonProduct(x).toString).mkString(",")
-
-
-
-}

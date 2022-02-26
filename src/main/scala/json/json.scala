@@ -14,7 +14,7 @@ object Json {
   //https://stackoverflow.com/questions/1443360/regex-for-matching-a-character-but-not-when-its-enclosed-in-quotes
 
   case class JsonString( value: String) extends Json {
-    override def toString: String = value.replaceAll("\"", "")
+    override def toString: String =  "\"" +  value.replaceAll("\"", "") + "\""
   }
 
 
@@ -31,8 +31,8 @@ object Json {
   case class JsonAny(value: Any) extends Json {
 
     override def toString: String = value match {
-      case x: Int => JsonInt(value.asInstanceOf[Int]).toString
-      case x: String => JsonString(value.asInstanceOf[String]).toString
+      case value: Int => JsonInt(value.asInstanceOf[Int]).toString
+      case value: String => {JsonString(value.asInstanceOf[String]).toString}
       case _  => value.toString
     }
   }
@@ -60,7 +60,7 @@ object Json {
     override def toString: String = "{" +  items.map{ case (k->v) => k + ":" + v.toString   }.mkString(",") + "}"
 
     def toMap: Map[String, String] = items.map{
-      case (k -> v) => k -> v.toString
+      case (k -> v) => k -> v.toString.replaceAll("\"", "")
     }
 
     def get(key: String): Option[Json] = items.get(key)
@@ -102,7 +102,7 @@ object Json {
       case "False"=>  JsonBoolean(false)
       case x if x.matches("[0-9]+") => JsonInt(value = x.toInt)
       case x if Try{x.toDouble}.isSuccess =>  JsonDouble(value = x.toDouble  )
-      case x: String => JsonString(x)
+      case x: String => JsonString(x.replaceAll("\"", ""))
     }}
 
 
@@ -176,8 +176,7 @@ object test extends App {
   val myperson =  Person("john")
   val personSeq: Seq[Product] = Seq(myperson)
 
-  print(Json.JsonProduct(myperson).toString)
-  print(jsonMap)
+  print(Json(personSeq))
 
 
 

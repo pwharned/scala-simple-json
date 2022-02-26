@@ -5,6 +5,9 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import database.{ConcreteDatabaseConfiguration, DatabaseConnection}
 import evaluators.ImpactEvaluator
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import akka.http.scaladsl.server.Directives
+import spray.json.DefaultJsonProtocol
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -20,27 +23,46 @@ object Main extends App {
 
   implicit val connection = DatabaseConnection(configuraiton)
 
-  case class Result(prediction: String, group:String)
+  trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+    implicit val itemFormat = jsonFormat4(Request)
+  }
 
-  val result = new ImpactEvaluator.Impact[Result]("risk", "test_data", "sex", connection = connection)
+  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double, minutes: Int, hours: Int, days: Int)
 
-  def main: Unit = {
+  case class Request(prediction: String, table: String, protected_column: String, scoring_timestamp: String )
+
+  val result = new ImpactEvaluator.Impact[Result]("risk", "test_data2", "sex", "timestamp",connection = connection)
+
+  class Application extends Directives with JsonSupport {
+
     implicit val actorSystem = ActorSystem(Behaviors.empty, "akka-http")
 
-    val route = get {
-      path("hello") {
 
-        val res = Await.result(result.result.flatMap, 5.seconds).map(x => json.Json.JsonProduct(x).toString).mkString(",")
+    val route = post {
+      path("api" / "disparate_impact") {
 
-        complete(HttpEntity(ContentTypes.`text/plain(UTF-8)`, res))
+            entity(as[Request]){
+              request =>
+
+                val result = new ImpactEvaluator.Impact[Result](request.prediction, request.table, request.protected_column, request.scoring_timestamp,connection = connection)
+
+
+                val res: Seq[Product] = Await.result(result.result.flatMap, 5.seconds).toSeq
+
+
+                complete(HttpEntity(ContentTypes.`application/json`, json.Json(res).toString))
+            }
 
       }
     }
 
-    Http().newServerAt("127.0.0.1", 8080).bind(route)
+def main = Http().newServerAt("127.0.0.1", 8080).bind(route)
 
   }
-  main
+
+  val server = new Application
+  server.main
+
 
 }
 

@@ -112,39 +112,3 @@ object DatabaseConnection {
 
 
 
-object Test extends App {
-
-  val currentDirectory = new java.io.File(".").getCanonicalPath
-
-  print(currentDirectory +   "/project/database.json")
-
-
- val configuraiton = ConcreteDatabaseConfiguration( currentDirectory +   "/project/database.json")
-
-  implicit val connection = DatabaseConnection(configuraiton)
-
-
-  case class Result(typename: String)
-
-  class ResultTable extends Table[Result](name= "SYSIBM.SYSCOLUMNS") {
-    def column_name = Column[String]("NAME")
-    def data_type = Column[String](name = "TYPENAME")
-
-    def * =  (column_name, data_type).groupBy(column_name)
-  }
-
-
-  val table  = new ResultTable
-println(table.toString)
-
-  print(table.*.columns)
-print( Await.result(table.flatMap, 2.seconds ))
-
-
-
-  /*
-  print(Await.result(table.map.apply(table.execute), 5.seconds))
-   */
-
-
-}

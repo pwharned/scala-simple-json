@@ -27,17 +27,26 @@ class Column[+T<:Any](name: String)(implicit retriever: Queryable[T]) extends Ag
   def /[A>:T](div: Column[A]): Column[T] ={
     val divisor = div.toString
     val numerator = this.toString
+    val numeratorExpression = this.expression
+    val divisorExpression = div.expression
+    val leftAlias = this.alias
+
     new Column[T](name=column.columnName){
       override def toString = numerator + "/" + divisor
+      override def expression: String = numeratorExpression + "/" + divisorExpression
+      override def alias: String = leftAlias
     }
-
-
   }
-  def -[A>:T](div: Column[A]): Column[T] = {
-    val divisor = div.toString
-    val numerator = this.toString
-    new Column[T](name = column.columnName) {
-      override def toString = numerator + "-" + divisor
+  def -[A>:T](operand: Column[A]): Column[T] ={
+    val leftAlias = operand.alias
+    val leftExpression = this.expression
+    val rightExpression = operand.expression
+
+    new Column[T](name=column.columnName){
+      override def expression: String = leftExpression + "-" + rightExpression
+      override def toString = expression + " as " + leftAlias
+      override def alias: String = leftAlias
+
     }
   }
 
@@ -80,10 +89,14 @@ object Column {
     override def alias: String = columnAlias
     override def expression: String = f"$aggregation($name)"
   }
-  def apply[T](name: String, columnAlias: String, aggregation: String, over: Column[T]*)(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=name){
+  def apply[T](name: String, columnAlias: String, aggregation: String, over: Column[T]*)(implicit retriever: Queryable[T]): Column[T]= {
+    val newExpression = f"$aggregation($name) OVER( PARTITION BY ${over.map(x => x.columnName).mkString(",")} )"
+    new Column[T](name=name){
     override def toString: String = f"$expression as $columnAlias"
     override def alias: String = columnAlias
-    override def expression: String = f"$aggregation($name) OVER( PARTITION BY ${over.map(x => x.columnName).mkString(",")} )"
+    override def expression: String = newExpression
+  }
+
   }
   def apply[T](column: Column[T], datatype: String )(implicit retriever: Queryable[T]): Column[T] = new Column[T](name=column.columnName){
     override def toString: String = f"cast(${column.columnName} as $datatype)"
@@ -95,22 +108,5 @@ object Column {
 }
 
 
-
-object ColumnTest extends  App{
-
-  case class Result(column_name: String, data_type: String)
-
-
-  class ResultTable extends Table[Result](name= "result") {
-    def column_name = Column[String]("COLUMN_NAME")
-    def data_type = Column[String](name = "DATA_TYPE")
-
-    def * =  ( data_type,column_name)
-  }
-
-
-  val table  = new ResultTable
-val columns = Seq("COLUMN_NAME")
-}
 
 ///Map to shoudl return a function which implicitly maps to a collection of the case class

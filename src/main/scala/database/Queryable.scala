@@ -23,6 +23,19 @@ object Queryable{
     override def retrieve(columnName: String, resultSet: ResultSet):Int  = resultSet.getInt(columnName)
     override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Int]  = resultSet.map(x =>x.getInt(columnName))
   }
+
+  implicit object LongQueryable extends Queryable[Long]{
+    override def retrieve(columnName: String, resultSet: ResultSet):Long  = resultSet.getLong(columnName)
+    override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Long]  = resultSet.map(x =>x.getLong(columnName))
+  }
+  implicit object DoubleQueryable extends Queryable[Double]{
+    override def retrieve(columnName: String, resultSet: ResultSet):Double  = resultSet.getDouble(columnName)
+    override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Double]  = resultSet.map(x =>x.getDouble(columnName))
+  }
+  implicit object FloatQueryable extends Queryable[Float]{
+    override def retrieve(columnName: String, resultSet: ResultSet):Float  = resultSet.getFloat(columnName)
+    override def retrieve(columnName: String, resultSet: Future[ResultSet]): Future[Float]  = resultSet.map(x =>x.getFloat(columnName))
+  }
 }
 
 trait Mapable {
