@@ -17,7 +17,9 @@ class Query[+T<:Any] (values: List[Column[T]] )(implicit tableName: String) exte
 
   override def toString: String = f"SELECT $cl FROM $tableName"
 
-  def asCte(tableName: String): String = f"$tableName as (" + toString + ")"
+  def reSource(sourceName: String) = toString.replace(tableName, sourceName)
+
+  def asCte(cteName: String): String = f"$cteName as (" + reSource(tableName) + ")"
 
 
   def select[A<:Column[_]](column: A*): Query[T] = new Query(values.filter(x => column.map(c => c.columnName).contains(x.columnName )))

@@ -27,18 +27,20 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
 
   def + (table: Table[A]):GenericTable[A] = {
-    val cte = table.asCte(tableName)
-    var query: String = toString
+    val cte = asCte(table.tableName)
+    var rightCte = table.asCte(this.tableName)
+    var query: String = table.toString
     val newColumns = table.*.columns
-    if(!query.startsWith("WITH")){
-      new GenericTable[A](tableName, newColumns) {
+    if(!this.toString.startsWith("WITH")){
+      new GenericTable[A](table.tableName, newColumns) {
         override def toString: String = "WITH " + cte + " " +  query
+        override def asCte(tableName: String): String = table.asCte(tableName)
+
       }
 
     }else{
-      query = query.split("SELECT").dropRight(1).mkString("SELECT") + ", " +  table.tableName +" as (SELECT " + query.split("SELECT").last  + ") " + table
-      println(query)
-      new GenericTable[A](tableName, newColumns) {
+      query = this.toString.split("SELECT").dropRight(1).mkString("SELECT")  + "," + asCte(table.tableName) + " " +  table
+      new GenericTable[A](table.tableName, newColumns) {
         override def toString: String = query
       }
     }

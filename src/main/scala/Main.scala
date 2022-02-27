@@ -27,7 +27,7 @@ object Main extends App {
     implicit val itemFormat = jsonFormat4(Request)
   }
 
-  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double, minutes: Int, hours: Int, days: Int)
+  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double,time: String )
 
   case class Request(prediction: String, table: String, protected_column: String, scoring_timestamp: String )
 

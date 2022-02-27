@@ -23,7 +23,7 @@ object ImpactEvaluatorTest extends App {
     implicit val connection = DatabaseConnection(configuraiton)
 
   //case class Result(prediction: String, sex: String, group:String, disparate_impact: String, minutes: String, hours: String, days: String)
-  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double, minutes: Int, hours: Int, days: Int)
+  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double, time:String)
 
 
     val resultTable = new ImpactEvaluator.Impact[Result]("risk", "test_data2", "sex", scoring_timestamp = "timestamp",connection = connection)
@@ -36,11 +36,17 @@ object ImpactEvaluatorTest extends App {
 
   //println( ratiosTable.toString.split("SELECT").dropRight(1).mkString("SELECT") + ", " +  resultstable.tableName +" as (SELECT " + ratiosTable.toString.split("SELECT").last  + ") " + resultstable )
   //val res = Await.result(result.result.flatMap, 30.seconds)
-  val execution = resultTable.result.execute
 
 
  // println(Await.result(resultTable.result.map.apply(resultTable.result.execute), 100.seconds))
 
-println(resultTable.result.flatMap)
+
+
+  println(resultTable.result.*.columns.map(x =>x.alias) )
+
+  println(Await.result(resultTable.result.flatMap, 5.seconds))
+
+
+
 
 }
