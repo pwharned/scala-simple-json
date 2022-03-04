@@ -3,9 +3,4 @@ create table scored_credit
         employmentduration DOUBLE,installmentpercent DOUBLE,sex DOUBLE,othersonloan DOUBLE,currentresidenceduration DOUBLE,ownsproperty DOUBLE,
                 age DOUBLE,installmentplans DOUBLE,housing DOUBLE,existingcreditscount DOUBLE,job DOUBLE,dependents DOUBLE,telephone DOUBLE,foreignworker DOUBLE,prediction DOUBLE, scoring_timestamp TIMESTAMP)
 
-db2 import from "scored.csv" OF DEL MODIFIED BY COLDEL; insert into scored_credit(scoring_id, checkingstatus, loanduration, credithistory,
-                                                                                         loanpurpose, loanamount, existingsavings, employmentduration,
-                                                                                         installmentpercent, sex, othersonloan, currentresidenceduration,
-                                                                                         ownsproperty, age, installmentplans, housing,
-                                                                                         existingcreditscount, job, dependents,telephone,
-                                                                                         foreignworker, prediction, scoring_timestamp)
+db2 import from "scored_2.csv" OF DEL MODIFIED BY COLDEL; insert into scored_credit (scoring_id, checkingstatus, loanduration, credithistory,loanpurpose, loanamount, existingsavings, employmentduration, installmentpercent, sex, othersonloan, currentresidenceduration,ownsproperty, age, installmentplans, housing,existingcreditscount, job, dependents,telephone, foreignworker, prediction, scoring_timestamp)
