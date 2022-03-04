@@ -77,6 +77,13 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
     }
   }
 
+  def asModel(target: String, learn_rate: String, max_iter: String):Table[A] = {
+
+    new GenericTable[A](tableName, values = this.*.columns) {
+      override def * : Query[Column[Any]] = super.*.queryToModel(target=target, learn_rate=learn_rate, max_iter=max_iter)
+    }
+  }
+
 
 }
 

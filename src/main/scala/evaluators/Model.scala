@@ -1,5 +1,0 @@
-package evaluators
-
-class Model {
-
-}
