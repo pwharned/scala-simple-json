@@ -1,6 +1,8 @@
 package database
 
 import java.sql.ResultSet
+
+
 import scala.language.implicitConversions
 import scala.reflect.runtime.universe._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -73,6 +75,14 @@ trait Mapable {
      * @param args the arguments to supply to the constructor method
      */
     def mapTo(args: Seq[_]): T = constructorMethod(args: _*).asInstanceOf[T]
+
+    def mapToDouble(args: Seq[Double]): T = {
+      constructorMethod(args).asInstanceOf[T]
+    }
+    def mapToMap(args: Map[String, Any]): T = {
+      constructorMethod(args).asInstanceOf[T]
+    }
+
 
   }
 

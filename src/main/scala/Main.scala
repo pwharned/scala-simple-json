@@ -1,15 +1,17 @@
+import scala.util.{Failure, Success}
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import database.{ConcreteDatabaseConfiguration, DatabaseConnection}
-import evaluators.ImpactEvaluator
+import evaluators.{DataDriftEvaluator, ExplainabilityEvaluator, ExplanationResult, ImpactEvaluator}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives
 import spray.json.DefaultJsonProtocol
 
-import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
 
 
@@ -24,39 +26,74 @@ object Main extends App {
   implicit val connection = DatabaseConnection(configuraiton)
 
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-    implicit val itemFormat = jsonFormat4(Request)
+    implicit val fairnessFormat = jsonFormat4(FairnessRequest)
+    implicit val explainFormat = jsonFormat7(ExplainabilityRequest)
+    implicit val driftFormat = jsonFormat5(DriftRequest)
+
+
   }
 
   case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double,time: String )
 
-  case class Request(prediction: String, table: String, protected_column: String, scoring_timestamp: String )
+  case class FairnessRequest(prediction: String, table: String, protected_column: String, scoring_timestamp: String )
 
-  val result = new ImpactEvaluator.Impact[Result]("risk", "test_data2", "sex", "timestamp",connection = connection)
+  case class ExplainabilityRequest(table_name: String, target: String, features: Seq[String], id_column: String, max_iter: String, learn_rate: String, ids: Seq[Int])
+
+  case class DriftRequest(table_name: String, features: Seq[String], scoring_timestamp: String, measure: String , over: String)
+
 
   class Application extends Directives with JsonSupport {
 
     implicit val actorSystem = ActorSystem(Behaviors.empty, "akka-http")
 
 
-    val route = post {
+    val disparateImpact = post {
+
       path("api" / "disparate_impact") {
+            entity(as[FairnessRequest]){
+              request => onComplete(new ImpactEvaluator.Impact[Result](request.prediction, request.table, request.protected_column, request.scoring_timestamp,connection = connection).result.flatMap.map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)) {
 
-            entity(as[Request]){
-              request =>
-
-                val result = new ImpactEvaluator.Impact[Result](request.prediction, request.table, request.protected_column, request.scoring_timestamp,connection = connection)
-
-
-                val res: Seq[Product] = Await.result(result.result.flatMap, 5.seconds).toSeq
-
-
-                complete(HttpEntity(ContentTypes.`application/json`, json.Json(res).toString))
+                  case Success(result) => complete(HttpEntity(ContentTypes.`application/json`, result ))
+                  case Failure(ex) => complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
+                }
             }
-
       }
     }
 
-def main = Http().newServerAt("127.0.0.1", 8080).bind(route)
+    val explainability = post {
+
+      path("api" / "explainability") {
+
+        entity(as[ExplainabilityRequest]){
+          request => onComplete(new ExplainabilityEvaluator.Explanation[ExplanationResult]( request.table_name, request.target, features = request.features, id_column=request.id_column, max_iter = request.max_iter, learn_rate = request.learn_rate,connection = connection, ids = request.ids).retrieve.map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
+
+            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
+            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
+
+          }
+        }
+      }
+    }
+
+
+    val drift = post {
+
+      path("api" / "drift") {
+
+        entity(as[DriftRequest]){
+          request => onComplete( DataDriftEvaluator.main( request.table_name, request.features, request.scoring_timestamp, request.measure, request.over, connection = connection).map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
+
+            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
+            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
+
+          }
+        }
+      }
+    }
+
+    val routes = disparateImpact ~ explainability ~drift
+
+    def main = Http().newServerAt("127.0.0.1", 8080).bind(routes)
 
   }
 

@@ -53,9 +53,9 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
   implicit val converter: Mapable.CaseMapable[A] = Mapable.CaseMapable[A]
   //implicit def tupleToQuery(values:  Tuple2[Column[String], Column[String]] ): Query[String] = new Query(values)
-  implicit def tupleToQuery[T<:Any](values:  Product ): Query[T] = new Query(values.productIterator.toSeq.asInstanceOf[List[Column[T]]])
-  implicit def columnListToQuery[T<:Any](column:  List[Column[T]] ): Query[T] = new Query(column.asInstanceOf[List[Column[T]]])
-  implicit def columnToQuery[T<:Any](column:  Column[Any] ): Query[T] = new Query(List(column).toSeq.asInstanceOf[List[Column[T]]])
+  implicit def tupleToQuery[T<:Column[Any]](values:  Product ): Query[T] = new Query(values.productIterator.toList.asInstanceOf[List[T]])
+  implicit def columnListToQuery[T<:Column[Any]](column:  List[T] ): Query[T] = new Query(column)
+  implicit def columnToQuery[T<:Column[Any]](column:  T ): Query[T] = new Query(List(column))
 
   type Execution = Future[ResultSet]
 
@@ -77,11 +77,52 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
     }
   }
 
-  def asModel(target: String, learn_rate: String, max_iter: String):Table[A] = {
+  def asModel(target: String, learn_rate: String, max_iter: String):GenericTable[A] = {
+
 
     new GenericTable[A](tableName, values = this.*.columns) {
+
       override def * : Query[Column[Any]] = super.*.queryToModel(target=target, learn_rate=learn_rate, max_iter=max_iter)
-    }
+
+      override def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
+        execution.map{
+          val l = ListBuffer.empty[A]
+          result => while(result.next()){
+            l+= converter.mapToMap(*.columns.map(column => column.alias ->  column.retrieve(column.alias,resultSet = result).asInstanceOf[Double]).toMap )
+
+          }
+            l
+        }
+      }
+
+      override def +(table: Table[A]):GenericTable[A] = {
+        val cte = asCte("model")
+        var rightCte = table.asCte(this.tableName)
+        var query: String = table.toString
+        val newColumns = *.columns
+
+        query =  "WITH " + asCte("model") + "," +  table.asCte("result") + f" SELECT ${newColumns.map(x => f"model.${x}").mkString(",")}, ${table.*.columns.map(x => f"${"result"}.${x}").mkString(",")} from model, result"
+          new GenericTable[A](table.tableName, newColumns:::table.*.columns) {
+            override def toString: String = query
+
+            override def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
+              execution.map{
+                val l = ListBuffer.empty[A]
+                result => while(result.next()){
+                  l+= converter.mapToMap(*.columns.map(column => column.alias ->  column.retrieve(column.alias,resultSet = result).asInstanceOf[Double]).toMap )
+
+                }
+                  l
+              }
+            }
+          }
+        }
+
+      }
+
+
+
+
   }
 
 
@@ -89,5 +130,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
 class GenericTable[A: TypeTag](name: String, values: List[Column[Any]]) extends Table[A](name){
 
-  def *  = new Query(values).asInstanceOf[Query[Column[Any]]]
+  def columnValues = values
+
+  def *  = new Query(values)
 }

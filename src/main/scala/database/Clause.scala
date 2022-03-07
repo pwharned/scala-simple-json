@@ -3,7 +3,7 @@ package database
 trait Clause
 
 class Condition(column: Column[_], operator: String, value: String){
-  override def toString: String = column.expression + operator + value
+  override def toString: String = f"${column.expression} ${operator} ${value}"
 }
 
 object Condition {

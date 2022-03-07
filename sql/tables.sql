@@ -3,4 +3,23 @@ create table scored_credit
         employmentduration DOUBLE,installmentpercent DOUBLE,sex DOUBLE,othersonloan DOUBLE,currentresidenceduration DOUBLE,ownsproperty DOUBLE,
                 age DOUBLE,installmentplans DOUBLE,housing DOUBLE,existingcreditscount DOUBLE,job DOUBLE,dependents DOUBLE,telephone DOUBLE,foreignworker DOUBLE,prediction DOUBLE, scoring_timestamp TIMESTAMP)
 
-db2 import from "scored_2.csv" OF DEL MODIFIED BY COLDEL; insert into scored_credit (scoring_id, checkingstatus, loanduration, credithistory,loanpurpose, loanamount, existingsavings, employmentduration, installmentpercent, sex, othersonloan, currentresidenceduration,ownsproperty, age, installmentplans, housing,existingcreditscount, job, dependents,telephone, foreignworker, prediction, scoring_timestamp)
+db2 "import from "scored.csv" OF DEL insert into scored_credit (checkingstatus, loanduration, credithistory,loanpurpose, loanamount, existingsavings, employmentduration, installmentpercent, sex, othersonloan, currentresidenceduration,ownsproperty, age, installmentplans, housing,existingcreditscount, job, dependents,telephone, foreignworker, prediction, scoring_timestamp)"
+
+
+
+
+WITH model as (WITH
+ TRAINING AS (SELECT t.*, t.prediction as target, ROW_NUMBER() OVER() AS ROW FROM scored_credit  AS T order by random() limit 1000  ),
+RATES (LEARN_RATE, COUNT) AS (SELECT .001 AS LEARN_RATE, (SELECT COUNT(*) FROM TRAINING) AS COUNT FROM SYSIBM.SYSDUMMY1),
+LEARNING (ITERATION, B1, INTERCEPT, MSE, M1, C) AS (SELECT 1, CAST(0.0 AS DOUBLE),CAST(0.0 AS DOUBLE),CAST(0.0 AS DOUBLE),CAST(0.0 AS DOUBLE),CAST(0.0 AS DOUBLE) FROM SYSIBM.SYSDUMMY1
+ UNION ALL SELECT A.ITERATION +1, A.M1, A.C, T.MSE, T.M1, T.C FROM LEARNING A,
+TABLE
+ (
+ SELECT A.ITERATION,
+AVG((TRAIN.target-((TRAIN.loanduration*A.M1)+A.INTERCEPT))*(TRAIN.target-((TRAIN.loanduration*A.M1)+A.INTERCEPT))) AS MSE,
+A.M1-(SUM((((TRAIN.loanduration*A.M1)+A.INTERCEPT)-TRAIN.target)*TRAIN.loanduration)/(SELECT COUNT FROM RATES))*(SELECT LEARN_RATE from RATES) AS M1,
+A.C-(SUM((((TRAIN.loanduration*A.M1)+A.INTERCEPT)-TRAIN.target))/(SELECT COUNT from RATES))*(SELECT LEARN_RATE FROM RATES) AS C
+ FROM TRAINING AS TRAIN) t
+ WHERE A.ITERATION <= 100000)
+  SELECT * FROM LEARNING
+ WHERE ITERATION >1 ORDER BY MSE LIMIT 1 ),result as (SELECT loanduration FROM scored_credit WHERE scoring_id in (15005)) SELECT model.*, result.loanduration from model, result

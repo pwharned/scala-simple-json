@@ -33,6 +33,7 @@ object Json {
     override def toString: String = value match {
       case value: Int => JsonInt(value.asInstanceOf[Int]).toString
       case value: String => {JsonString(value.asInstanceOf[String]).toString}
+      case value: Seq[Any] => JsonList(value.map(x => JsonAny(x)):_*).toString
       case _  => value.toString
     }
   }
@@ -42,7 +43,26 @@ object Json {
   }
 
   case class JsonProduct(value: Product) extends Json {
-    override def toString: String = "[" + value.productIterator.toArray.map(x => Json.JsonAny(x)).mkString(",") +"]"
+    //override def toString: String =  JsonList(value.productIterator.toArray.map(x => {Json.JsonAny(x)}      ):_*).toString
+
+    override def toString: String = JsonList(
+
+      value.productIterator.toList.map { x => x match {
+
+
+
+      case x: List[Any] => x.map(x =>Json.JsonAny(x))
+      case x: Map[String, Any] =>  List(Json.JsonMap(x.map(x => (x._1, Json.JsonAny(x._2)))))
+
+      case x: List[Map[String, Any]] =>  x.map( x=> Json.JsonMap(x.map(x => (x._1, Json.JsonAny(x._2)))) )
+      case x: Any => List(x).map(x =>Json.JsonAny(x))
+
+      }
+
+    }.flatten:_*
+
+    ).toString
+
   }
 
 
@@ -57,7 +77,8 @@ object Json {
   }
 
   case class JsonMap(val items: Map[String,Json]) extends Json{
-    override def toString: String = "{" +  items.map{ case (k->v) => k + ":" + v.toString   }.mkString(",") + "}"
+
+    override def toString: String = "{" +  items.map{ case (k->v) => "\""+k +"\"" + ":" + v.toString   }.mkString(",") + "}"
 
     def toMap: Map[String, String] = items.map{
       case (k -> v) => k -> v.toString.replaceAll("\"", "")

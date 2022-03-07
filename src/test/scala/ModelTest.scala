@@ -15,23 +15,30 @@ object ModelTest extends App {
 
   val configuraiton = ConcreteDatabaseConfiguration( currentDirectory +   "/project/database.json")
 
-    val columnA: Column[String] = Column("petal_width")
-    val columnB: Column[Int] = Column("petal_length")
-    val columnSeq: List[Column[_]] = List(columnA, columnB)
-    case class Result(b1: Double, b2: Double, iteration: Int, mse: Double)
-    val table = new GenericTable[Result](name = "samples_view", values = columnSeq)
+    val columnA: Column[Double] = Column("checkingstatus")
+    val columnB: Column[Double] = Column("loanduration")
+  val columnc: Column[Double] = Column("job")
 
-  val model = table.*.queryToModel(learn_rate = ".021", max_iter = "1000", target = "target")
+  val columnSeq: List[Column[_]] = List(columnA, columnB, columnc)
+    case class Result( b2: Double*)
 
-  val modelTable = table.asModel("target", ".021", "10000")
+  val table = new GenericTable[Result](name = "scored_credit", values = columnSeq)
+
+  val model = table.*.queryToModel(learn_rate = ".012", max_iter = "2000", target = "prediction")
+
+  val modelTable = table.asModel("prediction", ".001", "20000")
   implicit val connection = DatabaseConnection(configuraiton)
 
-  print(modelTable.*)
+  println(modelTable.*)
+
+  val myargs: Seq[Double] = List(10001.0, 0.11722526341905405, 0.0915237102803579, 0.0167819247334162)
+
+  //print(Result(myargs:_*))
 
   println(modelTable.*.columns)
-  println(modelTable.*.columns.map(x=> x.alias))
+  //println(modelTable.*.columns.map(x=> x.alias))
 
-  println(Await.result(modelTable.flatMap, 20.seconds))
+ println(Await.result(modelTable.flatMap, 20.seconds))
 
 
     /*

@@ -3,9 +3,9 @@ import scala.reflect.runtime.universe._
 
 
 trait Executable
-class Query[+T<:Any] (values: List[Column[T]] )(implicit tableName: String) extends Executable {
+class Query[+T<:Column[Any]] (values: List[T] )(implicit tableName: String) extends Executable {
 
-  implicit def queryToModel(target: String, learn_rate: String, max_iter: String)(implicit query: Query[Any]= this): Model[T] = new Model[T](values=values, learn_rate = learn_rate, target=target, max_iter=max_iter)
+  implicit def queryToModel(target: String, learn_rate: String, max_iter: String)(implicit query: Query[Column[Any]]= this): Model[T] = new Model[T](values=values, learn_rate = learn_rate, target=target, max_iter=max_iter)
 
 
   def drop[A<:Column[_]](column: A*): Query[T] = new Query(values.filter( x=> !column.map(c=>c.columnName).contains(x.columnName)))
@@ -86,6 +86,9 @@ class EmptyQuery[T<:Nothing] (implicit tableName: String) extends Query[T](List(
 
 
 object Query{
-  def apply[T <: Any](values: List[Column[T]])(implicit tableName: String): Query[T] = new Query(values)
+  ///def apply[T <: Any](values: List[Column[T]])(implicit tableName: String): Query[T] = new Query(values)
+
+  def apply(values: List[Column[Any]])(implicit tableName: String): Query[Column[Any]] = new Query(values)
+
 }
 
