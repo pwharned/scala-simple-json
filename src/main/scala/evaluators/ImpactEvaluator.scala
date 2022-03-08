@@ -20,9 +20,11 @@ object ImpactEvaluator {
       def maxDays = Column[String](name = scoring_timestamp).aggregate("days", "day")
       def days = Column[String](name = scoring_timestamp).aggregate("days", "day")
 
-      def time = Column[String](name = scoring_timestamp).aggregateOver("time", "max", hours)
+      //def time = Column[String](name = scoring_timestamp).aggregateOver("time", "max", hours)
+      def time = Column[String](name = scoring_timestamp).aggregateOver("time", "max", hours, days)
+      //def * =  (prediction_column, time, protected_attribute_column).filter(days, "=", table = maxDaysTable)
 
-      def * =  (prediction_column, time, protected_attribute_column).filter(days, "=", table = maxDaysTable)
+      def * =  (prediction_column, time, protected_attribute_column)
     }
 
     class GroupedTable extends Table[T](name= "t1") {
