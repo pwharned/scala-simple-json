@@ -26,19 +26,19 @@ object ModelTest extends App {
 
   val model = table.*.queryToModel(learn_rate = ".012", max_iter = "2000", target = "prediction")
 
-  val modelTable = table.asModel("prediction", ".001", "20000")
+  val modelTable = table.asModel("prediction", ".001", "10000")
   implicit val connection = DatabaseConnection(configuraiton)
 
-  println(modelTable.*)
+  println(modelTable)
+  println(model.equation)
 
-  val myargs: Seq[Double] = List(10001.0, 0.11722526341905405, 0.0915237102803579, 0.0167819247334162)
 
   //print(Result(myargs:_*))
 
   println(modelTable.*.columns)
   //println(modelTable.*.columns.map(x=> x.alias))
 
- println(Await.result(modelTable.flatMap, 20.seconds))
+ ///println(Await.result(modelTable.flatMap, 20.seconds))
 
 
     /*

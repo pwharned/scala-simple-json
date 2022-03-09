@@ -5,7 +5,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import database.{ConcreteDatabaseConfiguration, DatabaseConnection}
-import evaluators.{DataDriftEvaluator, ExplainabilityEvaluator, ExplanationResult, ImpactEvaluator}
+import evaluators.{AccuracyDriftEvaluator, DataDriftEvaluator, ExplainabilityEvaluator, ExplanationResult, ImpactEvaluator}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives
 import spray.json.DefaultJsonProtocol
@@ -29,6 +29,7 @@ object Main extends App {
     implicit val fairnessFormat = jsonFormat4(FairnessRequest)
     implicit val explainFormat = jsonFormat7(ExplainabilityRequest)
     implicit val driftFormat = jsonFormat5(DriftRequest)
+    implicit val accuracyDriftFormat = jsonFormat7(AccuracyDriftRequest)
 
 
   }
@@ -40,6 +41,7 @@ object Main extends App {
   case class ExplainabilityRequest(table_name: String, target: String, features: Seq[String], id_column: String, max_iter: String, learn_rate: String, ids: Seq[Int])
 
   case class DriftRequest(table_name: String, features: Seq[String], scoring_timestamp: String, measure: String , over: String)
+  case class AccuracyDriftRequest(table_name: String, features: Seq[String], scoring_timestamp: String, learn_rate: String , max_iter: String, target:String,over: String)
 
 
   class Application extends Directives with JsonSupport {
@@ -90,8 +92,23 @@ object Main extends App {
         }
       }
     }
+    val accuracyDrift = post {
 
-    val routes = disparateImpact ~ explainability ~drift
+      path("api" / "drift" / "accuracy") {
+
+        entity(as[AccuracyDriftRequest]){
+          request => onComplete( AccuracyDriftEvaluator.main(table_name = request.table_name, features = request.features, scoring_timestamp = request.scoring_timestamp, learn_rate = request.learn_rate, max_iter = request.max_iter,target=request.target, over = request.over, connection = connection).map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
+
+            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
+            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
+
+          }
+        }
+      }
+    }
+
+
+    val routes = disparateImpact ~ explainability ~drift ~accuracyDrift
 
     def main = Http().newServerAt("127.0.0.1", 8080).bind(routes)
 

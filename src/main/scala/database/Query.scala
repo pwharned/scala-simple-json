@@ -3,15 +3,16 @@ import scala.reflect.runtime.universe._
 
 
 trait Executable
+
 class Query[+T<:Column[Any]] (values: List[T] )(implicit tableName: String) extends Executable {
 
-  implicit def queryToModel(target: String, learn_rate: String, max_iter: String)(implicit query: Query[Column[Any]]= this): Model[T] = new Model[T](values=values, learn_rate = learn_rate, target=target, max_iter=max_iter)
+  implicit def queryToModel(target: String, learn_rate: String, max_iter: String)(implicit query: Query[Column[Any]]= this): Model = new Model(values=values, learn_rate = learn_rate, target=target, max_iter=max_iter)
 
 
   def drop[A<:Column[_]](column: A*): Query[T] = new Query(values.filter( x=> !column.map(c=>c.columnName).contains(x.columnName)))
 
 
-  def columns: List[Column[Any]] = values
+  def columns: List[T] = values
 
   def cl[T]: String = columns.map( x=>x match {
     case x: Column[T] => x.toString
@@ -29,7 +30,7 @@ class Query[+T<:Column[Any]] (values: List[T] )(implicit tableName: String) exte
 
   def groupBy[A<: Any](groupByColumns: Column[A]*): Query[T] = {
     val query: String = this.toString
-    new Query(values)
+    new Query(columns)
     {
       override def toString = query + (this :: Mutatable.GroupAble).clause(groupByColumns.map(x =>x.expression):_* ).apply(groupByColumns.map(x => x.expression).mkString(","))
 
@@ -58,14 +59,14 @@ class Query[+T<:Column[Any]] (values: List[T] )(implicit tableName: String) exte
 }
 
 
-class EmptyQuery[T<:Nothing] (implicit tableName: String) extends Query[T](List()) {
+class EmptyQuery[T<:Column[Nothing]] (implicit tableName: String) extends Query[T](List()) {
 
-  val values: List[Column[Nothing]]  = List()
+  val values: List[T]  = List()
 
   override def drop[A<:Column[_]](column: A*): Query[Nothing] = new EmptyQuery()
 
 
-  override def columns: List[Column[T]] = values
+  override def columns: List[T] = values
 
   override def cl[T]: String = ""
 

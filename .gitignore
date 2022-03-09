@@ -19,3 +19,4 @@ project/plugins/project/
 .Rproj.user
 .ipynb_checkpoints/
 *.Rproj
+.R*

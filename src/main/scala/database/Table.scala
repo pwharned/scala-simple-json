@@ -12,6 +12,7 @@ import scala.reflect.runtime.universe._
 abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
   implicit val tableName: String = name
+  def tableAlias: String = name
 
   def * : Query[Column[Any]]
 
@@ -28,9 +29,10 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
   def + (table: Table[A]):GenericTable[A] = {
     val cte = asCte(table.tableName)
-    var rightCte = table.asCte(this.tableName)
     var query: String = table.toString
     val newColumns = table.*.columns
+
+
     if(!this.toString.startsWith("WITH")){
       new GenericTable[A](table.tableName, newColumns) {
         override def toString: String = "WITH " + cte + " " +  query
@@ -39,7 +41,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
       }
 
     }else{
-      query = this.toString.split("SELECT").dropRight(1).mkString("SELECT")  + "," + asCte(table.tableName) + " " +  table
+      query = f"${this.toString.split("SELECT").dropRight(1).mkString("SELECT")}, ${table.tableName} as (SELECT ${this.toString.split("SELECT").last}) ${table}"
       new GenericTable[A](table.tableName, newColumns) {
         override def toString: String = query
       }
@@ -61,6 +63,7 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
 
   def flatMap[T](implicit connection:AbstractDatabaseConnection[T])  = this.map.apply(this.execute)
 
+  def flatMapToMap[T](implicit connection:AbstractDatabaseConnection[T])  = this.mapToMap.apply(this.execute)
 
   def execute[T](implicit connection: AbstractDatabaseConnection[T]): Future[ResultSet] = {
     connection.execute(toString)
@@ -71,6 +74,17 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
       val l = ListBuffer.empty[A]
       result => while(result.next()){
         l+= converter.mapTo(*.columns.map(column => column.retrieve(column.alias,resultSet = result)))
+
+      }
+        l
+    }
+  }
+
+  def mapToMap[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
+    execution.map{
+      val l = ListBuffer.empty[A]
+      result => while(result.next()){
+        l+= converter.mapToMap(*.columns.map(column => column.alias ->  column.retrieve(column.alias,resultSet = result)).toMap )
 
       }
         l
@@ -101,9 +115,10 @@ abstract class Table[A: TypeTag](name: String) extends Mapable.CaseMapable[A] {
         var query: String = table.toString
         val newColumns = *.columns
 
-        query =  "WITH " + asCte("model") + "," +  table.asCte("result") + f" SELECT ${newColumns.map(x => f"model.${x}").mkString(",")}, ${table.*.columns.map(x => f"${"result"}.${x}").mkString(",")} from model, result"
+        query =  "WITH " + asCte("model") + "," +  table.asCte("result") + f" SELECT ${newColumns.map(x => f"model.${x}").mkString(",")}, model.intercept, ${table.*.columns.map(x => f"${"result"}.${x}").mkString(",")} from model, result"
           new GenericTable[A](table.tableName, newColumns:::table.*.columns) {
             override def toString: String = query
+            override def tableAlias: String = "RESULT"
 
             override def map[A](implicit converter: Mapable.CaseMapable[A]  = converter ) = { implicit execution: Execution =>
               execution.map{
