@@ -20,3 +20,4 @@ project/plugins/project/
 .ipynb_checkpoints/
 *.Rproj
 .R*
+.DS_Store
