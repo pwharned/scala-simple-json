@@ -55,8 +55,8 @@ object Main extends App {
             entity(as[FairnessRequest]){
               request => onComplete(new ImpactEvaluator.Impact[Result](request.prediction, request.table, request.protected_column, request.scoring_timestamp,connection = connection).result.flatMap.map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)) {
 
-                  case Success(result) => complete(HttpEntity(ContentTypes.`application/json`, result ))
-                  case Failure(ex) => complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
+                  case Success(result) =>  println(result); complete(HttpEntity(ContentTypes.`application/json`, result ))
+                  case Failure(ex) =>  println(ex); complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
                 }
             }
       }

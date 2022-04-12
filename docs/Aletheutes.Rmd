@@ -27,15 +27,15 @@ output: pdf_document
   Aletheutes is streaming because it requires no blocking ETL in-memory transformations on data in order to provide analytics results. It is written entirely in Scala, and has only two external dependencies: Akka HTTP which provides the web server for the API, and the necessary database drivers from IBM.
   
   
-### Comparison with Watson Openscale
+### Comparison with Vertex AI
 
-|Openscale|Aletheutes|Explanation|
+|Vertex AI|Aletheutes|Explanation|
 |---------|----------|-----------|
-|ETL based design |Query based design|Openscale produces analytics insights by transforming data in memory and writing the output into separate tables. By contrast, Aletheutes issues queries to the database, and all necessary data transformations are pushed into the database. |
+|ETL based design |Query based design|Vertex AI produces analytics insights by transforming data in memory and writing the output into separate tables. By contrast, Aletheutes issues queries to the database, and all necessary data transformations are pushed into the database. |
 |Requires User Configuration| No Configuration Required | Given a dataset in a table to operate on, Aletheutes does not require any user configuration |
-|Requires access to training data | Does not require access to training data | In order to leverage features like Explainability and Drift, Openscale requires access to training data. Aletheutes implements all algorithms with the minimal amount of data possible, and can be enhanced with access to training data |
-|Application Logic Coupled with Data | No coupling between application logic and data | Since Openscale operates on data in memory, application logic of the various monitors is tightly coupled to the shape of the data itself, which is not the case with Aletheutes since it does not directly access or manipulate transactional data|
-|Requires access to model APIs. | Does not require access to model APIs.| In order to implement Explainability and other features, Openscale requires access to a stable model api and must be able to score the model. Aletheutes does not need direct access to the model api in order to produce useful analytics.|
+|Requires access to training data | Does not require access to training data | In order to leverage features like Explainability and Drift, Vertex AI requires access to training data. Aletheutes implements all algorithms with the minimal amount of data possible, and can be enhanced with access to training data |
+|Application Logic Coupled with Data | No coupling between application logic and data | Since Vertex AI operates on data in memory, application logic of the various monitors is tightly coupled to the shape of the data itself, which is not the case with Aletheutes since it does not directly access or manipulate transactional data|
+|Requires access to model APIs. | Does not require access to model APIs.| In order to implement Explainability and other features, Vertex AI requires access to a stable model api and must be able to score the model. Aletheutes does not need direct access to the model api in order to produce useful analytics.|
 
 The remainder of this document contains descriptions of the implementations of the various features as well as example requests and responses from the API, including time taken to complete the full request to give insight into the performance of the API. Note that as stated above, besides a table in a database containing the features and predictions of a machine learning model there are no other requirements to produce analytics results in this document. 
 
@@ -89,7 +89,7 @@ df %>% ggplot(aes(x = time, group = interaction(sex, prediction), colour = inter
 FIG1 Contains the result of an API call to an Aletheutes instances which shows the rates in which Males and Females experienced different outcomes of the mode over a week long period. The purple line is the rate at which men were assigned to the category of "Risk" by the model, while the blue line indicates the rate at which Females received the same assignation. Conversely, The red line indicates the rate at which Females were assigned to the "No Risk" category relative to all other groups, and the green line indicates the same for Men.
 
 
-|Openscale|Aletheutes|Explanation|
+|Vertex AI|Aletheutes|Explanation|
 |---------|----------|-----------|
 |Requires Configuration|Does not require configuration|Aletheutes calculates the likelihood of any outcome for a model for a member of a given demographic group with respect to all other possible outcomes and groups, and therefore does require configuration information|
 
@@ -116,7 +116,7 @@ df %>% ggplot(aes(x =factor(scoring_id), y = b1*loanduration, fill= factor(predi
 ```
 
 
-|Openscale|Aletheutes|Explanation|
+|Vertex AI|Aletheutes|Explanation|
 |---------|----------|-----------|
 |Requires Access to Training Data and Model API| Does not require access to training data and API|Aletheutes does not use a perturbed dataset to build a local model - it uses the available data in the database to generate a local model and therefore does not need to make external api calls or be configured with training data to generate explanations|
 
