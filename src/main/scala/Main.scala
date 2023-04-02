@@ -1,121 +1,120 @@
-import scala.util.{Failure, Success}
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import database.{ConcreteDatabaseConfiguration, DatabaseConnection}
-import evaluators.{AccuracyDriftEvaluator, DataDriftEvaluator, ExplainabilityEvaluator, ExplanationResult, ImpactEvaluator}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import akka.http.scaladsl.server.Directives
-import spray.json.DefaultJsonProtocol
+import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
+import org.slf4j.LoggerFactory
+import spray.json._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration.DurationInt
 
 
-object Main extends App {
+object Main extends App with DefaultJsonProtocol {
 
+
+
+case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
+
+
+  case class GrafanaDataPoint(arr: Array[Double])
+
+  implicit object GrafanaDatapointJsonFormat extends RootJsonFormat[GrafanaDataPoint]{
+    override def read(json: JsValue): GrafanaDataPoint = json match {
+      case JsArray(num) => GrafanaDataPoint(json.convertTo[Array[Double]])
+    }
+
+    override def write(obj: GrafanaDataPoint): JsValue = obj.arr.toJson
+  }
+
+  implicit object GrafanaDataPointArrayJsonFormat extends RootJsonFormat[Array[GrafanaDataPoint]]{
+    override def read(json: JsValue): Array[GrafanaDataPoint] = json match{
+      case JsArray(elements) => elements.map(x => x.convertTo[GrafanaDataPoint]).toArray
+    }
+
+    override def write(obj: Array[GrafanaDataPoint]): JsValue = obj.map( x=> x.toJson).toJson
+  }
+
+  implicit val grafanaTargetJsonFormat = jsonFormat2(GrafanaTarget)
+
+
+ // println("""[[0.7],[0.4],
+  //  |[0.9],[1.2]]""".stripMargin.parseJson.convertTo[Array[JsValue]].map(x => x.convertTo[GrafanaDataPoint]))
+
+//  println("""[[0.7],[0.4],
+  //          |[0.9],[1.2]]""".stripMargin.parseJson.convertTo[Array[GrafanaDataPoint]])
+
+
+  val test_json =
+    """[{"target":"male","datapoints":[[0.7],[0.4],
+      |[0.9],[1.2]]},{"target":"female","datapoints":[[1.7],
+      |[1.4], [1.3], [1.1]]}]""".stripMargin
+
+
+  def updateTestJson(test_json: String): String = {
+
+    test_json.parseJson.convertTo[Array[GrafanaTarget]].array.map{
+
+      x => new GrafanaTarget( x.target, x.datapoints.map(y =>  GrafanaDataPoint(y.arr ++ Array( (System.currentTimeMillis()).toDouble) )  ))
+    }
+  }.toJson.toString
+
+  updateTestJson(test_json)
+
+ // println(test_json.parseJson.convertTo[Array[GrafanaTarget]])
+
+  //println(test_json.parseJson.convertTo[JsArray].elements.map(x =>x.asJsObject.getFields("datapoints", "target").map(x =>x.getClass)))
+
+  val search_json = """["male","female"]""".stripMargin
+  val logger = LoggerFactory.getLogger("Main")
   val currentDirectory = new java.io.File(".").getCanonicalPath
 
   print(currentDirectory +   "/project/database.json")
-
-  val configuraiton = ConcreteDatabaseConfiguration( currentDirectory +   "/project/database.json")
-
-  implicit val connection = DatabaseConnection(configuraiton)
-
-  trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-    implicit val fairnessFormat = jsonFormat4(FairnessRequest)
-    implicit val explainFormat = jsonFormat7(ExplainabilityRequest)
-    implicit val driftFormat = jsonFormat5(DriftRequest)
-    implicit val accuracyDriftFormat = jsonFormat7(AccuracyDriftRequest)
+  implicit val system = ActorSystem(Behaviors.empty, "my-system")
+  // needed for the future flatMap/onComplete in the end
+  implicit val executionContext = system.executionContext
 
 
+  val route =
+    pathPrefix("") {
+concat(
+  get {
+        complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
+      },
+  post {
+    complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
   }
+)}
 
-  case class Result(prediction: String, sex: String, group:Float,disparate_impact: Double,time: String )
-
-  case class FairnessRequest(prediction: String, table: String, protected_column: String, scoring_timestamp: String )
-
-  case class ExplainabilityRequest(table_name: String, target: String, features: Seq[String], id_column: String, max_iter: String, learn_rate: String, ids: Seq[Int])
-
-  case class DriftRequest(table_name: String, features: Seq[String], scoring_timestamp: String, measure: String , over: String)
-  case class AccuracyDriftRequest(table_name: String, features: Seq[String], scoring_timestamp: String, learn_rate: String , max_iter: String, target:String,over: String)
-
-
-  class Application extends Directives with JsonSupport {
-
-    implicit val actorSystem = ActorSystem(Behaviors.empty, "akka-http")
-
-
-    val disparateImpact = post {
-
-      path("api" / "disparate_impact") {
-            entity(as[FairnessRequest]){
-              request => onComplete(new ImpactEvaluator.Impact[Result](request.prediction, request.table, request.protected_column, request.scoring_timestamp,connection = connection).result.flatMap.map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)) {
-
-                  case Success(result) =>  println(result); complete(HttpEntity(ContentTypes.`application/json`, result ))
-                  case Failure(ex) =>  println(ex); complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
-                }
-            }
-      }
-    }
-
-    val explainability = post {
-
-      path("api" / "explainability") {
-
-        entity(as[ExplainabilityRequest]){
-          request => onComplete(new ExplainabilityEvaluator.Explanation[ExplanationResult]( request.table_name, request.target, features = request.features, id_column=request.id_column, max_iter = request.max_iter, learn_rate = request.learn_rate,connection = connection, ids = request.ids).retrieve.map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
-
-            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
-            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
-
-          }
+  val grafanaQuery =
+    concat(path("grafana" / "search") {
+      concat(
+        get {
+          complete(HttpEntity(ContentTypes.`application/json`, search_json))
+        },
+        post {
+          complete(HttpEntity(ContentTypes.`application/json`, search_json))
         }
+      )
+    },
+  path("grafana" / "query") {
+    concat(
+      get {
+        complete(HttpEntity(ContentTypes.`application/json`, updateTestJson(test_json)))
+      },
+      post {
+        complete(HttpEntity(ContentTypes.`application/json`, updateTestJson(test_json)))
       }
-    }
+    )
+  })
 
-
-    val drift = post {
-
-      path("api" / "drift") {
-
-        entity(as[DriftRequest]){
-          request => onComplete( DataDriftEvaluator.main( request.table_name, request.features, request.scoring_timestamp, request.measure, request.over, connection = connection).map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
-
-            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
-            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
-
-          }
-        }
-      }
-    }
-    val accuracyDrift = post {
-
-      path("api" / "drift" / "accuracy") {
-
-        entity(as[AccuracyDriftRequest]){
-          request => onComplete( AccuracyDriftEvaluator.main(table_name = request.table_name, features = request.features, scoring_timestamp = request.scoring_timestamp, learn_rate = request.learn_rate, max_iter = request.max_iter,target=request.target, over = request.over, connection = connection).map(x => json.Json(x.toSeq.asInstanceOf[Seq[Product]]).toString)){
-
-            case Success(x) => println(x); complete( HttpEntity(ContentTypes.`application/json`, x ))
-            case Failure(ex) => print(ex);complete(HttpEntity(ContentTypes.`application/json`, ex.toString ))
-
-          }
-        }
-      }
-    }
-
-
-    val routes = disparateImpact ~ explainability ~drift ~accuracyDrift
+  val routes = grafanaQuery~route
 
     def main = Http().newServerAt("127.0.0.1", 8080).bind(routes)
 
-  }
 
-  val server = new Application
-  server.main
+
+    main
 
 
 }
