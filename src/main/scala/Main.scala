@@ -5,16 +5,21 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
-import org.slf4j.LoggerFactory
 import spray.json._
+import scala.util.Random
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 
 object Main extends App with DefaultJsonProtocol {
 
+  val logger = LoggerFactory.getLogger(classOf[App])
 
 
-case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
+
+
+  case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 
 
   case class GrafanaDataPoint(arr: Array[Double])
@@ -44,29 +49,28 @@ case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 //  println("""[[0.7],[0.4],
   //          |[0.9],[1.2]]""".stripMargin.parseJson.convertTo[Array[GrafanaDataPoint]])
 
-
+/*
   val test_json =
     """[{"target":"male","datapoints":[[0.7],[0.4],
       |[0.9],[1.2]]},{"target":"female","datapoints":[[1.7],
       |[1.4], [1.3], [1.1]]}]""".stripMargin
-
+*/
+  def test_json =
+    f"""[{"target":"male", "datapoints":${(0 to 100).map(x => Array(Random.nextFloat(), (System.currentTimeMillis().toDouble-(Random.nextInt(60)*6000)).toDouble ) ).toJson}},
+       |{"target":"female", "datapoints":${(0 to 100).map(x => Array(Random.nextFloat(), (System.currentTimeMillis().toDouble-(Random.nextInt(60)*6000)).toDouble ) ).toJson}}
+       |]""".stripMargin
 
   def updateTestJson(test_json: String): String = {
 
     test_json.parseJson.convertTo[Array[GrafanaTarget]].array.map{
 
-      x => new GrafanaTarget( x.target, x.datapoints.map(y =>  GrafanaDataPoint(y.arr ++ Array( (System.currentTimeMillis()).toDouble) )  ))
+      x =>  GrafanaTarget( x.target, x.datapoints.map(y =>  GrafanaDataPoint(y.arr ++ Array( (System.currentTimeMillis()).toDouble) )  ))
     }
   }.toJson.toString
 
-  updateTestJson(test_json)
 
- // println(test_json.parseJson.convertTo[Array[GrafanaTarget]])
-
-  //println(test_json.parseJson.convertTo[JsArray].elements.map(x =>x.asJsObject.getFields("datapoints", "target").map(x =>x.getClass)))
 
   val search_json = """["male","female"]""".stripMargin
-  val logger = LoggerFactory.getLogger("Main")
   val currentDirectory = new java.io.File(".").getCanonicalPath
 
   print(currentDirectory +   "/project/database.json")
@@ -79,9 +83,11 @@ case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
     pathPrefix("") {
 concat(
   get {
+    logger.info(f"Handling request for root ")
         complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
       },
   post {
+    logger.info(f"Handling request for root ")
     complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
   }
 )}
@@ -90,9 +96,13 @@ concat(
     concat(path("grafana" / "search") {
       concat(
         get {
+          logger.info(f"Handling request for 'grafana/search' ")
+
           complete(HttpEntity(ContentTypes.`application/json`, search_json))
         },
         post {
+          logger.info(f"Handling request for 'grafana/search' ")
+
           complete(HttpEntity(ContentTypes.`application/json`, search_json))
         }
       )
@@ -100,10 +110,10 @@ concat(
   path("grafana" / "query") {
     concat(
       get {
-        complete(HttpEntity(ContentTypes.`application/json`, updateTestJson(test_json)))
+        complete(HttpEntity(ContentTypes.`application/json`, test_json))
       },
       post {
-        complete(HttpEntity(ContentTypes.`application/json`, updateTestJson(test_json)))
+        complete(HttpEntity(ContentTypes.`application/json`, test_json))
       }
     )
   })
