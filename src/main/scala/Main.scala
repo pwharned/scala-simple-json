@@ -7,21 +7,18 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
 import spray.json._
 
+import scala.util.{Failure, Success}
 import scala.util.Random
 import com.typesafe.config.{Config, ConfigFactory}
 import database.DatabaseConnection
 import database.ResultSetStream.ResultSetStream
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import org.apache.logging.log4j.scala.Logging
 
 import java.sql.ResultSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-object Main extends App with DefaultJsonProtocol {
-
-  val logger = LoggerFactory.getLogger(classOf[App])
-
+object Main extends App with DefaultJsonProtocol with Logging{
 
 
   val conf: Config = ConfigFactory.load("application.conf");
@@ -35,6 +32,13 @@ object Main extends App with DefaultJsonProtocol {
 
       result.toStream
 
+    }
+  }
+
+  result.onComplete{
+     {
+      case Success(posts) => for (post <- posts) println(post.getString(1))
+      case Failure(t) => println("An error has occurred: " + t.getMessage)
     }
   }
   case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
@@ -89,9 +93,7 @@ object Main extends App with DefaultJsonProtocol {
 
 
   val search_json = """["male","female"]""".stripMargin
-  val currentDirectory = new java.io.File(".").getCanonicalPath
 
-  print(currentDirectory +   "/project/database.json")
   implicit val system = ActorSystem(Behaviors.empty, "my-system")
   // needed for the future flatMap/onComplete in the end
   implicit val executionContext = system.executionContext

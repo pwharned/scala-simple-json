@@ -13,3 +13,7 @@ libraryDependencies += "com.typesafe.akka"% "akka-actor-typed_2.13" % "2.6.14"
 libraryDependencies += "com.typesafe.akka"% "akka-stream-typed_2.13" % "2.6.14"
 libraryDependencies += "com.typesafe.akka"% "akka-http_2.13" % "10.2.4"
 libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % "10.2.4"
+libraryDependencies ++= Seq(
+  "org.apache.logging.log4j" % "log4j-api-scala_2.13" % "12.0",
+  "org.apache.logging.log4j" % "log4j-core" % "2.19.0" % Runtime
+)
