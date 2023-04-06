@@ -6,7 +6,7 @@ scalaVersion := "2.13.6"
 
 
 libraryDependencies += "com.ibm.db2.jcc" % "db2jcc" % "db2jcc4"
-
+libraryDependencies += "com.typesafe" % "config" % "1.4.2"
 libraryDependencies += "org.scala-lang"  % "scala-reflect" % scalaVersion.value
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.13.6"
 libraryDependencies += "com.typesafe.akka"% "akka-actor-typed_2.13" % "2.6.14"

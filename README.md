@@ -16,3 +16,8 @@ The implementation will provide ad-hoc in-database interpretable regression and 
 There will be both global surrogate models and local models, similar to LIME but with simplifications to account for runtime and scalability issues.
 
 The explainability features allow end users to send a model transaction id and feature array to the API, which will in turn run a query that builds a local model to predict the black box models prediction and scores the model against the requested transaction limited to the feature set specified by the user. 
+
+## Dev
+
+```podman pod create --name=db2 -p 50000:50000```
+```podman run --pod=db2 -itd --name mydb2 --privileged=true -e LICENSE=accept -e DB2INST1_PASSWORD=password -e DBNAME=bludb ibmcom/db2```

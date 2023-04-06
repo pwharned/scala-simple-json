@@ -6,11 +6,17 @@ import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
 import spray.json._
-import scala.util.Random
 
+import scala.util.Random
+import com.typesafe.config.{Config, ConfigFactory}
+import database.DatabaseConnection
+import database.ResultSetStream.ResultSetStream
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import java.sql.ResultSet
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 object Main extends App with DefaultJsonProtocol {
 
@@ -18,7 +24,19 @@ object Main extends App with DefaultJsonProtocol {
 
 
 
+  val conf: Config = ConfigFactory.load("application.conf");
+  val dbconf: DatabaseConnection = new DatabaseConnection(conf)
 
+  val result: Future[Stream[ResultSet]] = dbconf.getConnection.map {
+
+    x => {
+      val statement = x.createStatement()
+      val result = statement.executeQuery("SELECT 1 from sysibm.sysdummy 1")
+
+      result.toStream
+
+    }
+  }
   case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 
 
