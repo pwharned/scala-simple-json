@@ -37,41 +37,37 @@ class DatabaseConnection(conf: Config) {
 
       }
 
-  def openConnection: Option[Future[Connection]] =  {
-    Option(Future(DriverManager.getConnection(uri, username, password)).andThen{
-      case _ => logger.info(f"Opening connection to ${uri}");getConnection
-    }   )
+  def openConnection: Future[Connection] =  {
+    Future(DriverManager.getConnection(uri, username, password)).andThen{
+      case Success(_) => logger.info(f"Opening connection to ${uri}")
+      case Failure(exception) => logger.error(f"${exception.getStackTrace.mkString("\n")}")
+    }
   }
 
   var connections = openConnections
 
-  def openConnections: Seq[Option[Future[Connection]]] = (0 to 10).map {
+  def openConnections: Seq[Future[Connection]] = (0 to 10).map {
     x => { openConnection}
   }
 
   def getConnection: Future[Connection] = {
 
-    if (connections.tail.isEmpty){
+    logger.info(f"Size of connection pool is ${connections.length}")
+
+
+    if (connections.length == 5) {
       connections = openConnections
     }
 
     val conOption = connections.headOption
-    connections  = connections.tail
-conOption match{
-  case Some(con) => con.map {
-    z =>
-      z.value.map(o => o match {
+    connections = connections.tail
+    conOption match {
+      case Some(con) => con.andThen {
         case Success(value) => Future(value)
-        case Failure(exception) => logger.error(f"Error getting connection to ${uri}"); getConnection
-      })
-  } match{
-    case Some(value) => value match {
-      case Some(value) => value
-      case None => Thread.sleep(10000); logger.error(f"Error getting connection to ${uri}"); getConnection
+        case Failure(exception) => logger.error(f"Error getting connection to ${uri} ${exception.getStackTrace.mkString("/n")}"); getConnection
+      }
+      case None => {logger.error({"Connection"}); getConnection}
     }
-    case None => {logger.error({"Connection"}); getConnection}
-  }
-}
   }
 
   def updateConnections: Unit = {
@@ -82,12 +78,11 @@ conOption match{
   def closeConnections: Unit ={
     this.connections.map{
       x => x.map{
-        y => y.map{
-          z => z.close()
+        y => y.close()
         }
       }
     }
-  }
+
 
 
 }

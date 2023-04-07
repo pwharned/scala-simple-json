@@ -24,23 +24,24 @@ object Main extends App with DefaultJsonProtocol with Logging{
   val conf: Config = ConfigFactory.load("application.conf");
   val dbconf: DatabaseConnection = new DatabaseConnection(conf)
 
-  val result: Future[Stream[ResultSet]] = dbconf.getConnection.map {
+  val result =(0 to 100).map(  g =>  dbconf.getConnection.map {
 
     x => {
       val statement = x.createStatement()
-      val result = statement.executeQuery("SELECT 1 from sysibm.sysdummy 1")
+      val result = statement.executeQuery("SELECT 1 from sysibm.sysdummy1 limit 1")
 
       result.toStream
 
     }
   }
-
-  result.onComplete{
+  )
+  result.foreach(z => z.onComplete{
      {
       case Success(posts) => for (post <- posts) println(post.getString(1))
       case Failure(t) => println("An error has occurred: " + t.getMessage)
     }
   }
+  )
   case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 
 
