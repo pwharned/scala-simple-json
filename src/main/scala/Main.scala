@@ -1,16 +1,13 @@
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
 import spray.json._
 
-import scala.util.{Failure, Success}
 import scala.util.Random
-import com.typesafe.config.{Config, ConfigFactory}
-import database.DatabaseConnection
+import database.{ApplicationInitializer, DatabaseConnection}
 import database.ResultSetStream.ResultSetStream
 import org.apache.logging.log4j.scala.Logging
 
@@ -18,12 +15,9 @@ import java.sql.ResultSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-object Main extends App with DefaultJsonProtocol with Logging{
+object Main extends App with DefaultJsonProtocol with Logging with ApplicationInitializer{
 
-
-  val conf: Config = ConfigFactory.load("application.conf");
-  val dbconf: DatabaseConnection = new DatabaseConnection(conf)
-
+/*
   val result =(0 to 100).map(  g =>  dbconf.getConnection.map {
 
     x => {
@@ -42,6 +36,10 @@ object Main extends App with DefaultJsonProtocol with Logging{
     }
   }
   )
+
+ */
+
+  initialze()
   case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 
 
@@ -82,14 +80,6 @@ object Main extends App with DefaultJsonProtocol with Logging{
     f"""[{"target":"male", "datapoints":${(0 to 100).map(x => Array(Random.nextFloat(), (System.currentTimeMillis().toDouble-(Random.nextInt(60)*6000)).toDouble ) ).toJson}},
        |{"target":"female", "datapoints":${(0 to 100).map(x => Array(Random.nextFloat(), (System.currentTimeMillis().toDouble-(Random.nextInt(60)*6000)).toDouble ) ).toJson}}
        |]""".stripMargin
-
-  def updateTestJson(test_json: String): String = {
-
-    test_json.parseJson.convertTo[Array[GrafanaTarget]].array.map{
-
-      x =>  GrafanaTarget( x.target, x.datapoints.map(y =>  GrafanaDataPoint(y.arr ++ Array( (System.currentTimeMillis()).toDouble) )  ))
-    }
-  }.toJson.toString
 
 
 

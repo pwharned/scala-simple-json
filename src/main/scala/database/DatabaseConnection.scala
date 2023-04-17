@@ -40,7 +40,7 @@ class DatabaseConnection(conf: Config) {
   def openConnection: Future[Connection] =  {
     Future(DriverManager.getConnection(uri, username, password)).andThen{
       case Success(_) => logger.info(f"Opening connection to ${uri}")
-      case Failure(exception) => logger.error(f"${exception.getStackTrace.mkString("\n")}")
+      case Failure(exception) => {logger.error(f"Error opening connection to ${uri}; will sleep for 10 seconds. ${exception.getStackTrace.mkString("\n")}"); Thread.sleep(1000)}
     }
   }
 
