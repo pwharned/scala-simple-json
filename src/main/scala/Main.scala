@@ -7,39 +7,16 @@ import akka.http.scaladsl.server.Directives.{complete, pathPrefix}
 import spray.json._
 
 import scala.util.Random
-import database.{ApplicationInitializer, DatabaseConnection}
-import database.ResultSetStream.ResultSetStream
 import org.apache.logging.log4j.scala.Logging
 
 import java.sql.ResultSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-object Main extends App with DefaultJsonProtocol with Logging with ApplicationInitializer{
+object Main extends App with DefaultJsonProtocol with Logging {
 
-/*
-  val result =(0 to 100).map(  g =>  dbconf.getConnection.map {
 
-    x => {
-      val statement = x.createStatement()
-      val result = statement.executeQuery("SELECT 1 from sysibm.sysdummy1 limit 1")
 
-      result.toStream
-
-    }
-  }
-  )
-  result.foreach(z => z.onComplete{
-     {
-      case Success(posts) => for (post <- posts) println(post.getString(1))
-      case Failure(t) => println("An error has occurred: " + t.getMessage)
-    }
-  }
-  )
-
- */
-
-  initialze()
   case class GrafanaTarget(target:String, datapoints: Array[GrafanaDataPoint])
 
 
